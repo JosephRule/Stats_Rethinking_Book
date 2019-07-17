@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1556424919431.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "2E32AC77",
+    "lastKnownWriteTime" : 1556739361,
+    "last_content_update" : 1556739361643,
+    "path" : "~/Bayesian/Ch4.Rmd",
+    "project_path" : "Ch4.Rmd",
+    "properties" : {
+        "cursorPosition" : "567,14",
+        "scrollLine" : "563",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

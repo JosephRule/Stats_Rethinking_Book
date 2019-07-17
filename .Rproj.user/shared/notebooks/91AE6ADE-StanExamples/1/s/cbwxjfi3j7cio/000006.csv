@@ -1,0 +1,276 @@
+"0","y <- as.matrix(read.table('https://raw.github.com/wiki/stan-dev/rstan/rats.txt', header = TRUE))"
+"0","x <- c(8, 15, 22, 29, 36)"
+"0","xbar <- mean(x)"
+"0","N <- nrow(y)"
+"0","T <- ncol(y)"
+"0","rats_fit <- stan('https://raw.githubusercontent.com/stan-dev/example-models/master/bugs_examples/vol1/rats/rats.stan')"
+"2","path[1]=""https://raw.githubusercontent.com/stan-dev/example-models/master/bugs_examples/vol1/rats/rats.stan"": No such file or directory"
+"1","DIAGNOSTIC(S) FROM PARSER:"
+"1","
+"
+"1","Info (non-fatal): Comments beginning with # are deprecated.  Please use // in place of # for line comments."
+"1","
+"
+"1","Info (non-fatal): Comments beginning with # are deprecated.  Please use // in place of # for line comments."
+"1","
+"
+"1","Info (non-fatal): Comments beginning with # are deprecated.  Please use // in place of # for line comments."
+"1","
+"
+"1","Info (non-fatal): Comments beginning with # are deprecated.  Please use // in place of # for line comments."
+"1","
+"
+"1","Info (non-fatal): assignment operator <- deprecated in the Stan language; use = instead."
+"1","
+"
+"1","Info (non-fatal): assignment operator <- deprecated in the Stan language; use = instead."
+"1","
+"
+"1","Info (non-fatal): assignment operator <- deprecated in the Stan language; use = instead."
+"1","
+"
+"1","Info (non-fatal): assignment operator <- deprecated in the Stan language; use = instead."
+"1","
+"
+"1","
+"
+"1","starting worker pid=3900 on localhost:11717 at 19:10:21.635
+"
+"1","starting worker pid=3910 on localhost:11717 at 19:10:21.970
+"
+"1","starting worker pid=3925 on localhost:11717 at 19:10:22.303
+"
+"1","starting worker pid=3935 on localhost:11717 at 19:10:22.616
+"
+"1","
+"
+"1","SAMPLING"
+"1"," FOR MODEL 'rats' NOW (CHAIN 1).
+"
+"1","Chain 1: 
+"
+"1","Chain 1: Gradient evaluation took 9.6e-05 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.96 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+"
+"1","Chain "
+"1","1: Iteration:    1 / 2000 [  0%]  (Warmup)
+"
+"1","
+SAMPLING FOR MODEL 'rats' NOW (CHAIN 2"
+"1",").
+"
+"1","Chain 2: 
+"
+"1","Chain 2: Gradient evaluation took 6.9e-05 seconds
+Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.69 seconds.
+Chain 2: Adjust your expectations accordingly!
+Chain 2: 
+Chain 2: 
+"
+"1","Chain 2: Iteration:    1 / 2000 [  0%]  (Warmup)"
+"1","
+"
+"1","
+SAMPLING FOR MODEL '"
+"1","rats' NOW (CHAIN 3).
+"
+"1","Chain "
+"1","3: 
+Chain 3: Gradient evaluation took 0.000154 seconds
+Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 1.54 seconds.
+Chain 3: Adjust your expectations accordingly!
+Chain 3: 
+Chain 3: 
+"
+"1","Chain 3: Iteration:    1 / 2000 [  0%]  (Warmup)"
+"1","
+"
+"1","
+SAMPLING FOR MODEL 'rats' NOW (CHAIN "
+"1","4).
+"
+"1","Chain 4: 
+"
+"1","Chain 4: Gradient evaluation took 9.7e-05 seconds
+Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.97 seconds.
+Chain 4: Adjust your expectations accordingly!
+Chain 4: 
+Chain 4: 
+"
+"1","Chain "
+"1","4"
+"1",": "
+"1","Iteration:    1 / 2000 [  0%]  (Warmup)
+"
+"1","Chain "
+"1","1"
+"1",": Iteration:  200 / 2000 [ 10%]  (Warmup)
+"
+"1","Chain "
+"1","2"
+"1",": Iteration:  200 / 2000 [ 10%]  (Warmup)
+"
+"1","Chain "
+"1","1"
+"1",": "
+"1","Iteration:  400 / 2000 [ 20%]  (Warmup)
+"
+"1","Chain "
+"1","2"
+"1",": Iteration:  400 / 2000 [ 20%]  (Warmup)
+"
+"1","Chain "
+"1","1: Iteration:  600 / 2000 [ 30%]  (Warmup)
+"
+"1","Chain 2: "
+"1","Iteration:  600 / 2000 [ 30%]  (Warmup)
+"
+"1","Chain 1: Iteration:  800 / 2000 [ 40%]  (Warmup)
+"
+"1","Chain 2: Iteration:  800 / 2000 [ 40%]  (Warmup)
+"
+"1","Chain 3: Iteration:  200 / 2000 [ 10%]  (Warmup)"
+"1","
+"
+"1","Chain 1: Iteration: 1000 / 2000 [ 50%]  (Warmup)
+"
+"1","Chain 1: Iteration: 1001 / 2000 [ 50%]  (Sampling)"
+"1","
+"
+"1","Chain 2: Iteration: 1000 / 2000 [ 50%]  (Warmup)
+"
+"1","Chain 2: Iteration: 1001 / 2000 [ 50%]  (Sampling)"
+"1","
+"
+"1","Chain 4: Iteration:  200 / 2000 [ 10%]  (Warmup)"
+"1","
+"
+"1","Chain "
+"1","3"
+"1",": Iteration:  400 / 2000 [ 20%]  (Warmup)
+"
+"1","Chain 2: Iteration: 1200 / 2000 [ 60%]  (Sampling)"
+"1","
+"
+"1","Chain "
+"1","2"
+"1",": Iteration: 1400 / 2000 [ 70%]  (Sampling)
+"
+"1","Chain 3: Iteration:  600 / 2000 [ 30%]  (Warmup)"
+"1","
+"
+"1","Chain 1: Iteration: 1200 / 2000 [ 60%]  (Sampling)
+"
+"1","Chain 2: Iteration: 1600 / 2000 [ 80%]  (Sampling)"
+"1","
+"
+"1","Chain 3: Iteration:  800 / 2000 [ 40%]  (Warmup)"
+"1","
+"
+"1","Chain "
+"1","2"
+"1",": Iteration: 1800 / 2000 [ 90%]  (Sampling)
+"
+"1","Chain 1: Iteration: 1400 / 2000 [ 70%]  (Sampling)
+"
+"1","Chain "
+"1","2: Iteration: 2000 / 2000 [100%]  (Sampling)
+"
+"1","Chain 2: 
+Chain 2:  Elapsed Time: 1.26069 seconds (Warm-up)
+Chain 2:                0.415198 seconds (Sampling)
+Chain 2:                1.67589 seconds (Total)
+Chain 2: 
+"
+"1","Chain 3: Iteration: 1000 / 2000 [ 50%]  (Warmup)
+"
+"1","Chain 3: Iteration: 1001 / 2000 [ 50%]  (Sampling)
+"
+"1","Chain 3: Iteration: 1200 / 2000 [ 60%]  (Sampling)
+"
+"1","Chain 1: Iteration: 1600 / 2000 [ 80%]  (Sampling)"
+"1","
+"
+"1","Chain 3: Iteration: 1400 / 2000 [ 70%]  (Sampling)
+"
+"1","Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)"
+"1","
+"
+"1","Chain 3: Iteration: 1600 / 2000 [ 80%]  (Sampling)
+"
+"1","Chain 4: Iteration:  400 / 2000 [ 20%]  (Warmup)"
+"1","
+"
+"1","Chain "
+"1","3"
+"1",": Iteration: 1800 / 2000 [ 90%]  (Sampling)
+"
+"1","Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)"
+"1","
+"
+"1","Chain 1: 
+"
+"1","Chain 1:  Elapsed Time: 1.37088 seconds (Warm-up)
+Chain 1:                1.11977 seconds (Sampling)
+Chain 1:                2.49065 seconds (Total)
+Chain 1: 
+"
+"1","Chain "
+"1","3"
+"1",": Iteration: 2000 / 2000 [100%]  (Sampling)
+Chain 3: 
+Chain 3:  Elapsed Time: 1.4689 seconds (Warm-up)
+Chain 3:                0.620718 seconds (Sampling)
+Chain 3:                2.08961 seconds (Total)
+Chain 3: 
+"
+"1","Chain 4: Iteration:  600 / 2000 [ 30%]  (Warmup)
+"
+"1","Chain 4: Iteration:  800 / 2000 [ 40%]  (Warmup)"
+"1","
+"
+"1","Chain 4: "
+"1","Iteration: 1000 / 2000 [ 50%]  (Warmup)
+"
+"1","Chain 4: Iteration: 1001 / 2000 [ 50%]  (Sampling)
+"
+"1","Chain "
+"1","4"
+"1",": "
+"1","Iteration: 1200 / 2000 [ 60%]  (Sampling)"
+"1","
+"
+"1","Chain "
+"1","4: Iteration: 1400 / 2000 [ 70%]  (Sampling)
+"
+"1","Chain 4: "
+"1","Iteration: 1600 / 2000 [ 80%]  (Sampling)
+"
+"1","Chain 4: "
+"1","Iteration: 1800 / 2000 [ 90%]  (Sampling)
+"
+"1","Chain "
+"1","4: Iteration: 2000 / 2000 [100%]  (Sampling)
+Chain 4: 
+Chain 4:  Elapsed Time: 2.37275 seconds (Warm-up)
+Chain 4:                1.08997 seconds (Sampling)
+Chain 4:                3.46272 seconds (Total)
+Chain 4: 
+"
+"2","Warning messages:
+1: package ‘ggplot2’ was built under R version 3.5.2 
+2: package ‘StanHeaders’ was built under R version 3.5.2 
+Warning messages:
+1: package ‘ggplot2’ was built under R version 3.5.2 
+2: package ‘StanHeaders’ was built under R version 3.5.2 
+Warning messages:
+1: package ‘ggplot2’ was built under R version 3.5.2 
+2: package ‘StanHeaders’ was built under R version 3.5.2 
+Warning messages:
+1: package ‘ggplot2’ was built under R version 3.5.2 
+2: package ‘StanHead"
+"2","ers’ was built under R version 3.5.2 
+"

@@ -1,0 +1,6 @@
+"0","set.seed(100) "
+"0","#sample from the grid, according to the relevant posterior probability"
+"0","#it's more likely to pull from higher density areas"
+"0","#sample 10,000 times"
+"0","samples <- sample( p_grid, prob=posterior, size=1e4, replace=TRUE)"
+"0","dens(samples)"

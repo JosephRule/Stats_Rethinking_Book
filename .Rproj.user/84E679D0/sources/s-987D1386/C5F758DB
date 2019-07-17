@@ -1,0 +1,24 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1555198889829.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "83580585",
+    "id" : "C5F758DB",
+    "lastKnownWriteTime" : 1555201078,
+    "last_content_update" : 1555633852021,
+    "path" : "~/Bayesian/StanExamples.Rmd",
+    "project_path" : "StanExamples.Rmd",
+    "properties" : {
+        "chunk_output_type" : "inline",
+        "cursorPosition" : "47,0",
+        "scrollLine" : "46",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

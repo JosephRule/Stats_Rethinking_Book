@@ -1,0 +1,5 @@
+"0","m4.2 <- map( alist( height ~ dnorm( mu, sigma), "
+"0","                    mu ~ dnorm( 178, 0.1), "
+"0","                    sigma ~ dunif( 0, 50) ) , "
+"0","             data=d2) "
+"0","precis( m4.2)"

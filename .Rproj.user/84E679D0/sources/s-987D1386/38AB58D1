@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1555200796337.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "38AB58D1",
+    "lastKnownWriteTime" : 1555200809,
+    "last_content_update" : 1555200810004,
+    "path" : "~/Bayesian/rats.stan",
+    "project_path" : "rats.stan",
+    "properties" : {
+        "cursorPosition" : "46,0",
+        "scrollLine" : "0",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "stan"
+}

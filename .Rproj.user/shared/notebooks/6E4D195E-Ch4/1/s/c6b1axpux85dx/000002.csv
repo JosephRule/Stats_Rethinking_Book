@@ -1,0 +1,2 @@
+"0","log.big <- replicate(1e4, log(prod(1+ runif(12, 0 , 0.5))))"
+"0","dens(log.big, norm.comp=TRUE)"

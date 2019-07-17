@@ -1,0 +1,2 @@
+"0","small <- replicate( 10000, prod( 1 + runif(12,0,0.01)))"
+"0","dens( small, norm.comp=TRUE)"

@@ -1,0 +1,7 @@
+"0","m4.1_logsigma <- map("
+"0","  alist("
+"0","    height ~ dnorm(mu, exp(log_sigma)),"
+"0","    mu ~ dnorm(178, 20),"
+"0","    log_sigma ~ dnorm(2,10)"
+"0","  ), "
+"0","  data=d2)"

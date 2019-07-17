@@ -1,0 +1,12 @@
+loss <- sapply( p_grid, function(d) sum( posterior*abs( d - p_grid)))
+]0;~/Bayesian[?1034h(base) Josephs-MacBook-Air:Bayesian jjosephrule$ loss <- sapply( p_grid,  function(d) sum( posterior*abs( d -  p_grid)))
+bash: syntax error near unexpected token `('
+]0;~/Bayesian(base) Josephs-MacBook-Air:Bayesian jjosephrule$ p_grid[which.min(loss)]
+bash: p_grid[which.min(loss)]: command not found
+]0;~/Bayesian(base) Josephs-MacBook-Air:Bayesian jjosephrule$ dbinom(0:2, size = 2, pr ob=0.7)
+bash: syntax error near unexpected token `0:2,'
+]0;~/Bayesian(base) Josephs-MacBook-Air:Bayesian jjosephrule$ dbinom(0:2, size = 2, pr ob=0.7)
+bash: syntax error near unexpected token `0:2,'
+]0;~/Bayesian(base) Josephs-MacBook-Air:Bayesian jjosephrule$ str(sim.height)
+bash: syntax error near unexpected token `sim.height'
+]0;~/Bayesian(base) Josephs-MacBook-Air:Bayesian jjosephrule$ [K[A(base) Josephs-MacBook-Air:Bayessian josephrule$ 

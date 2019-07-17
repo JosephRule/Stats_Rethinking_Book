@@ -1,0 +1,3 @@
+"0","height.PI <- apply(sim.height, 2, PI, prob=0.90)"
+"0","#plot raw data"
+"0","plot(height ~ weight, d2, col=col.alpha(rangi2, 0.5))"

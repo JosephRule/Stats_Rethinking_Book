@@ -1,0 +1,6 @@
+"0","p_grid <- seq( from=0, to=1, length.out=1000)"
+"0","prior2 <- c(rep(0, 500), rep(1,500))"
+"0","likelihood2 <- dbinom( 8, size=15, prob=p_grid)"
+"0","posterior2 <- likelihood * prior "
+"0","posterior2 <- posterior/ sum(posterior)"
+"0","plot(posterior2)"

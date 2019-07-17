@@ -1,0 +1,8 @@
+"0","la <- extract(fit, permuted = TRUE) # return a list of arrays "
+"0","mu <- la$mu "
+"0","### return an array of three dimensions: iterations, chains, parameters "
+"0","a <- extract(fit, permuted = FALSE) "
+"0","### use S3 functions on stanfit objects"
+"0","a2 <- as.array(fit)"
+"0","m <- as.matrix(fit)"
+"0","d <- as.data.frame(fit)"

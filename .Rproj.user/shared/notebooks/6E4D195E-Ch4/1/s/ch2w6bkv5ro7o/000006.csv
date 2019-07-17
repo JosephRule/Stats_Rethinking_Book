@@ -1,0 +1,2 @@
+"0","#plot a shaded region for 89% HPDI"
+"0","shade(mu.HPDI, weight.seq)"

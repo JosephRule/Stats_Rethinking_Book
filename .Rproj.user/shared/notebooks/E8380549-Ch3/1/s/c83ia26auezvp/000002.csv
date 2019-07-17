@@ -1,0 +1,1 @@
+"0","loss <- sapply( p_grid, function(d) sum( posterior*abs( d - p_grid)))"

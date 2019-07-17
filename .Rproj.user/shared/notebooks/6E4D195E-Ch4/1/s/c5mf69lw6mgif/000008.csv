@@ -1,0 +1,4 @@
+"0","post <- extract.samples(mN, n=1e4)"
+"0","mu_at_50 <- post$a + post$b * 50"
+"0","#plot the density of these means"
+"0","dens(mu_at_50, col=rangi2, lwd=2, xlab=""mu|weight=50"")"

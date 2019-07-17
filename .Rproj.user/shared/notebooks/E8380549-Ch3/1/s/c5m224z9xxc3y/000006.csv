@@ -1,0 +1,6 @@
+"0","p_grid[which.max(posterior)]"
+"1","[1]"
+"1"," 0.5545546"
+"1","
+"
+"0","#chainmode(samples, adj=0.01)"

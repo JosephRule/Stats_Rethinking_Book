@@ -1,0 +1,25 @@
+"0","#define sequence of weights to compute predictions for "
+"0","#these values will be on the horizontal axis "
+"0","weight.seq <- seq( from=25, to=70, by=1) "
+"0","#use link to compute mu "
+"0","#for each sample from posterior "
+"0","#and for each weight in weight.seq "
+"0","mu <- link( m4.3, data=data.frame(weight=weight.seq))"
+"1","[ 100 / 1000 ]"
+"1","[ 200 / 1000 ]"
+"1","[ 300 / 1000 ]"
+"1","[ 400 / 1000 ]"
+"1","[ 500 / 1000 ]"
+"1","[ 600 / 1000 ]"
+"1","[ 700 / 1000 ]"
+"1","[ 800 / 1000 ]"
+"1","[ 900 / 1000 ]"
+"1","[ 1000 / 1000 ]"
+"1","
+"
+"0","str(mu)"
+"1"," num [1:1000, 1:46] "
+"1","136 136 137 138 135"
+"1"," ..."
+"1","
+"

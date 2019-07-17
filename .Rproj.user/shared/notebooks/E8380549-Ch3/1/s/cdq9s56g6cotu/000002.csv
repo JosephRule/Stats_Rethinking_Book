@@ -1,0 +1,1 @@
+"0","samples <- sample(p_grid, prob = posterior, size = 10000, replace = TRUE)"

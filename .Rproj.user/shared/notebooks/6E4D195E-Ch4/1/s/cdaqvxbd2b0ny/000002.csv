@@ -1,0 +1,2 @@
+"0","growth <- replicate( 10000, prod( 1 + runif(12,0,0.1))) "
+"0","dens( growth, norm.comp=TRUE)"

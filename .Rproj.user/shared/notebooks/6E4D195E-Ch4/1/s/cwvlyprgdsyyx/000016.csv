@@ -1,0 +1,6 @@
+"0","#extract 20 samples from the posterior"
+"0","post <- extract.samples(mN, n=20)"
+"0","#display raw data and sample size"
+"0","plot( dN$weight, dN$height, "
+"0","      xlim=range(d2$weight), ylim=range(d2$height),"
+"0","      col=rangi2, xlab=""weight"", ylab=""height"")"

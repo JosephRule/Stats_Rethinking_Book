@@ -1,0 +1,5 @@
+"0","flist <- alist("
+"0","  height ~ dnorm(mu, sigma),"
+"0","  mu ~ dnorm(178, 20),"
+"0","  sigma ~ dunif(0, 50)"
+"0",")"

@@ -65,11 +65,12 @@ dens(log.big, norm.comp=TRUE)
 ### 4.1.4 Why use Gaussian?
 Why do we use Gaussian distributions?
 
+
 #### 4.1.4.1 Ontological justification
 Because it's common that processes can be aggregated by a series of additions of noise. Ofen we can make descriptions of our observations before we can understand the underlying processes.
 
 #### 4.1.4.2. Epistemological justification.
-Because it is the least interesting assumption to make. We're saying this thing probably has a finite variance for example. Because of what's common, we need need to justify that there is something about this process is different from a Gaussian. This has to do w/ideas about maximum entropy
+Because it is the least interesting assumption to make. We're saying this thing probably has a finite variance for example. Because of what's common, we need need to justify that there is something about this process is different from a Gaussian. This has to do w/ideas about maximum entropy. The gaussian is generally a conservative assumption
 
 ## 4.2 A language for describing models
 outcome variable, liklihood distribution of each outcome variable, predictor variables, likihood distribution of predictor variables, and priors for all paramters
@@ -610,7 +611,11 @@ yi ∼ Normal(µ, σ)
 
 4M2. Translate the model just above into a map formula. 
 ```{r}
-
+flist <- alist(
+  y ~ dnorm(mu, sigma),
+  mu ~ dnorm(0, 10),
+  sigma ~ dunif(0, 50)
+)
 ```
 
 
@@ -622,22 +627,118 @@ b ~ dunif( 0, 10),
 sigma ~ dunif( 0, 50) 
 )
 
+yi ~ Normal(mu , sigma)
+mui = a + bxi
+a ~ normal(0, 50)
+b ~ uniform(0, 10)
+sigma ~ uniform(0, 50)
+
 4M4. A sample of students is measured for height each year for 3 years. After the third year, you want to fit a linear regression predicting height using year as a predictor. Write down the mathematical model definition for this regression, using any variable names and priors you choose. Be prepared to defend your choice of priors. 
+
+hi ~ Normal(mu, sigma) (height is normally distributed)
+mui = a + b*yi (mean height is a function of year)
+a ~ Normal(91, 15) (some distribution of initial heights, I'm assuming these kids are young, but I'm going to let the variance be wide)
+b ~ Normal(15, 2) <- 6" is a lot of growth every year, but I have no good estimate here.
+sigma ~ Uniform(0, 63) <- I have no good guess at this
 
 4M5. Now suppose I tell you that the average height in the first year was 120 cm and that every student got taller each year. Does this information lead you to change your choice of priors? How? 
 
+My alpha prior should have a mean of 120cm 
+I also need to make sure by beta prior is always positive. Maybe I wouldn't want to use a normal distribution here. Should I instead use a uniform dist? I don't have a good intuition for it tbh.
+
 4M6. Now suppose I tell you that the variance among heights for students of the same age is never more than 64cm. How does this lead you to revise your priors? 
+My sigma can be set to a uniform on [0, 64]
+Just want to mentioned I acually guessed 25", which is equal to 63 cm, which is pretty darn close to what they gave here.
 
 ### Hard. 
 
 4H1. The weights listed below were recorded in the !Kung census, but heights were not recorded for these individuals. Provide predicted heights and 89% intervals (either HPDI or PI) for each of these individuals. That is, fill in the table below, using model-based predictions. 
 
-(data)
+1 &2. Set up the structure of the map and map it
+```{r}
+m4.3 <- map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + b*weight,
+    a ~ dnorm(156, 100), 
+    b ~ dnorm(0,10),
+    sigma ~ dunif(0,50)
+  ),
+  data=d2)
+```
+
+
+use model m4.3 from above
+```{r}
+precis(m4.3)
+```
+
+3. do the simulation stuff and look at the estimates
+```{r}
+sim.height <- sim(m4.3, data=list(weight=heights$weight))
+
+(height.mean <- apply(sim.height, 2, mean))
+(height.HPDI <- apply(sim.height, 2, HPDI, prob=0.89))
+(height.PI <- apply(sim.height, 2, PI, prob=0.89))
+```
+
 
 4H2. Select out all the rows in the Howell1 data with ages below 18 years of age. If you do it right, you should end up with a new data frame with 192 rows in it. 
+```{r}
+d3 <- d[d$age < 18, ]
+dim(d3)
+```
+
 (a) Fit a linear regression to these data, using map. Present and interpret the estimates. For every 10 units of increase in weight, how much taller does the model predict a child gets? 
+```{r}
+m4.4 <- map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + b*weight,
+    a ~ dnorm(156, 100), 
+    b ~ dnorm(0,10),
+    sigma ~ dunif(0,50)
+  ),
+  data=d3)
+```
+
+```{r}
+precis(m4.4)
+```
+for ever 10 units of weight we'd expect to gain 27 units of height
+
 (b) Plot the raw data, with height on the vertical axis and weight on the horizontal axis. Superimpose the MAP regression line and 89% HPDI for the mean. Also superimpose the 89% HPDI for predicted heights. 
+```{r}
+#make a sequence of heights we would like to plot
+weight.seq <- seq(from=0, to=50, by=1)
+#simulate a bunch of heights for each weight 
+mu <- link(m4.4, data = data.frame(weight=weight.seq))
+
+#find the mean value of the simulated values
+mu.mean <- apply(mu, 2, mean)
+#find the HPDIs of the simulated values
+mu.HPDI <- apply(mu, 2, HPDI, prob=0.89)
+
+#now simulate (predict) heights given the values of weight
+sim.height <- sim(m4.4, data=list(weight = weight.seq))
+#find the PI of these simluated values
+height.PI <- apply(sim.height, 2, PI, prob=0.89)
+```
+
+
+
+```{r}
+plot(height ~ weight, d3, col=col.alpha(rangi2, 0.5))
+lines(weight.seq, mu.mean)
+shade(mu.HPDI, weight.seq)
+shade(height.PI, weight.seq)
+```
+
 (c) What aspects of the model fit concern you? Describe the kinds of assumptions you would change, if any, to improve the model. You don’t have to write any new code. Just explain what the model appears to be doing a bad job of, and what you hypothesize would be a better model. 
+
+It's doing a bad job on the tails. The residuals plot would suggest that the relationship is nonlinear (negative residuals on the sides, positive residuals in the middle)
+
+I need to take the time to fiddle with the priors to see if I can substantively change anything here. Not sure what to think of that...
 
 4H3. Suppose a colleague of yours, who works on allometry, glances at the practice problems just above. Your colleague exclaims, “That’s silly. Everyone knows that it’s only the logarithm of body weight that scales with height!” Let’s take your colleague’s advice and see what happens. 
 (a) Model the relationship between height (cm) and the natural logarithm of weight (log-kg). Use the entire Howell1 data frame, all 544 rows, adults and non-adults. Fit this model, using quadratic approximation:
@@ -647,6 +748,23 @@ hi ∼ Normal(µi, σ)
 β ∼ Normal(0, 100) 
 σ ∼ Uniform(0, 50) 
 where hi is the height of individual i and wi is the weight (in kg) of individual i. The function for computing a natural log in R is just log. Can you interpret the resulting estimates?
+
+```{r}
+m4.5 <- map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + b*log(weight),
+    a ~ dnorm(178, 100), 
+    b ~ dnorm(0,100),
+    sigma ~ dunif(0,50)
+  ),
+  data=d)
+
+precis(m4.5)
+```
+beta is weird now, I can't get an intuition for it. I know that -23 + 47.08 * weight = predicted value of height.
+
+
 (b) Begin with this plot: 
 ```{r}
 plot( height ~ weight, data=Howell1, 
@@ -655,4 +773,28 @@ plot( height ~ weight, data=Howell1,
 ```
 Then use samples from the quadratic approximate posterior of the model in (a) to superimpose on the plot: (1) the predicted mean height as a function of weight, (2) the 97% HPDI for the mean, and (3) the 97% HPDI for predicted heights.
 
+```{r}
+#make a sequence of heights we would like to plot
+weight.seq <- seq(from=0, to=70, by=1)
+#simulate a bunch of heights for each weight 
+mu <- link(m4.5, data = data.frame(weight=weight.seq))
 
+#find the mean value of the simulated values
+mu.mean <- apply(mu, 2, mean)
+#find the HPDIs of the simulated values
+mu.HPDI <- apply(mu, 2, HPDI, prob=0.97)
+
+#now simulate (predict) heights given the values of weight
+sim.height <- sim(m4.5, data=list(weight = weight.seq))
+#find the PI of these simluated values
+height.PI <- apply(sim.height, 2, PI, prob=0.97)
+```
+
+```{r}
+plot(height ~ weight, d, col=col.alpha(rangi2, 0.5))
+lines(weight.seq, mu.mean)
+shade(mu.HPDI, weight.seq)
+shade(height.PI, weight.seq)
+```
+
+that's pretty darn neat

@@ -403,7 +403,7 @@ m4.4 <- map(
   alist( 
     height ~ dnorm( mu, sigma), 
     mu <- a + b*weight.c, 
-    a ~ dnorm( 178, 100), 
+    a ~ dnorm( 178, 50), 
     b ~ dnorm( 0, 10), 
     sigma ~ dunif( 0, 50) 
     ) , 
@@ -654,6 +654,16 @@ Just want to mentioned I acually guessed 25", which is equal to 63 cm, which is 
 
 4H1. The weights listed below were recorded in the !Kung census, but heights were not recorded for these individuals. Provide predicted heights and 89% intervals (either HPDI or PI) for each of these individuals. That is, fill in the table below, using model-based predictions. 
 
+```{r}
+heights <- as.data.frame(
+  cbind(
+    Individual = seq(1:5),
+    weight = c(46.95, 43.72, 64.78, 32.59, 54.63)
+  )
+)
+```
+
+
 1 &2. Set up the structure of the map and map it
 ```{r}
 m4.3 <- map(
@@ -797,4 +807,52 @@ shade(mu.HPDI, weight.seq)
 shade(height.PI, weight.seq)
 ```
 
-that's pretty darn neat
+```{r}
+mu.HPDI
+```
+
+There was a lot more discussion in the lectures that I missed from the book about the importance of simulating the prior predictive distributions. 
+for example:
+```{r}
+set.seed(2971)
+N <- 100
+a <- rnorm(N, 178, 20)
+b <- rnorm(N, 0, 10)
+#the plot in lecture 3 is centered on the mean weight of the d2 data, which is = 45
+a <- a - b *mean(d2$weight)
+
+plot(c(30,70), c(-100,400), type = "n", xlab = "weight", ylab = "height")
+for (i in 1:100)
+  abline( a=a[i], b=b[i], col=col.alpha("black", 0.3))
+abline(h = 0) #height cannot be negative
+abline(h = 272) #height of the tallest man ever
+```
+We see that a lot of these prior lines just don't make sense
+*People don't shrink with weight
+*People can't have height <0 
+*People don't grow over 277cm (they could possibly, but this would not be the modeling data to speak to them)
+
+In the book he fits a different distribution mean value using the log normal function, because we know that beta can't be negative (people wont be shorter by weight)
+However, there's an interesting thing here about if we were predicting a person's height in time, there is some negative beta for when they get old.
+```{r}
+b <- rlnorm(1e4, 0, 1)
+dens(b, xlim=c(0,5), adj = 0.1)
+```
+
+```{r}
+set.seed(2971)
+N <- 100
+a <- rnorm(N, 178, 20)
+b <- rlnorm(N, 0, 1)
+#the plot in lecture 3 is centered on the mean weight of the d2 data, which is = 45
+a <- a - b *mean(d2$weight)
+
+plot(c(30,70), c(-100,400), type = "n", xlab = "weight", ylab = "height")
+for (i in 1:100)
+  abline( a=a[i], b=b[i], col=col.alpha("black", 0.3))
+abline(h = 0) #height cannot be negative
+abline(h = 272) #height of the tallest man ever
+```
+
+There are some betas from the tail of the distribution, which is totally fine.
+

@@ -2,12 +2,14 @@
 title: "Ch5"
 output: html_document
 ---
+
 ```{r}
 library(rethinking)
 ```
 
 
 ## Chapter 5
+I'm rewriting a lot of this from the 2nd edition of the book. Which is great, because I had a hard time following the last half of the chapter from the 1st edition. 
 
 Discussion about multiple correlations.
 
@@ -27,60 +29,105 @@ Talking about if marriage rate and/or median marriage age cause divorce. Interes
 data("WaffleDivorce")
 d <- WaffleDivorce
 
-#standardize the predictor
-d$MedianAgeMarriage.s <- (d$MedianAgeMarriage-mean(d$MedianAgeMarriage)) / sd(d$MedianAgeMarriage)
+#standardize the variables
+#this is a good step because I don't actually know a lot about how to build priors 
+#for example, what is the prior for alpha (divorce rate intercept)
+#someone might know, but I do know that the divorce rate for the average medianage or marriage rate
+#should just be the average divorce rate (alpha prior is tight around zero)
+d$A <- scale(d$MedianAgeMarriage)
+d$D <- scale(d$Divorce)
+d$M <- scale(d$Marriage)
+```
 
+More discussion about how to set priors:
 
-#fit model
+What about those priors? Since the outcome and the predictor are both standardized, the intercept α should end up very close to zero. 
+What does the prior slope βA imply? If βA = 1, that would imply that a change of one standard deviation in age at marriage is associated likewise with a change of one standard deviation in divorce. 
+To know whether or not that is a strong relationship, you need to know how big a standard deviation of age at marriage is:
+```{r}
+sd(d$MedianAgeMarriage)
+```
+So when βA = 1, a change of 1.2 years in median age at marriage is associated with a full standard deviation change in the outcome variable. That seems like an insanely strong relationship. The prior above thinks that only 5% of plausible slopes more extreme than 1. We’ll simulate from these priors in a moment, so you can see how they look in the outcome space.
+(but also, this is peeking at the data....)
+
+```{r}
+#first fit a model where divorce is a function of age
 m5.1 <- map(
   alist(
-    Divorce ~ dnorm(mu, sigma),
-    mu <- a + bA * MedianAgeMarriage.s,
-    a ~ dnorm(10,10),
-    bA ~ dnorm(0,1),
-    sigma ~ dunif(0,10)
+    D ~ dnorm(mu, sigma),
+    mu <- a + bA * A,
+    a ~ dnorm(0 , 0.2), 
+    bA ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
   ), data = d)
 precis(m5.1)
 ```
 
+We should simulate from the priors using extract.prior.
+Plot lines over the range of 2*sd for both the outcome and predictor.
+```{r}
+set.seed(10)
+#prior <- extract.prior(m5.1)
+#this extract prior code doesn't seem to work yet
+```
+
+Having trouble getting the new package to work, so I'm just going to read though and try to answer questions at the end. Though, I think I like the new layout of this chapter as compared to the previous edition of the book.
+
+tangent on "Directed acyclic graph" (DAG)
+```{r}
+install.packages('dagitty')
+library(dagitty)
+```
+
+```{r}
+dags5.1 <- dagitty( "dag {
+  A -> D
+  A -> M
+  M -> D
+}")
+coordinates(dags5.1) <- list(x=c(A=0, D=1, M=2), y=c(A=0, D=1, M=0))
+plot(dags5.1)
+```
+
+
 compute the percentile interval of the mean
 ```{r}
-MAM.seq <- seq(from=-3, to=3.5, length.out=30)
-mu <- link(m5.1, data = data.frame(MedianAgeMarriage.s=MAM.seq))
-mu.PI <- apply(mu, 2, PI)
+MAM.seq1 <- seq(from=-3, to=3.5, length.out=30)
+mu1 <- link(m5.1, data = data.frame(MedianAgeMarriage.s=MAM.seq1))
+mu1.PI <- apply(mu1, 2, PI)
 
 #plot
 plot(Divorce ~ MedianAgeMarriage.s, data=d, col=rangi2)
 abline(m5.1)
-shade(mu.PI, MAM.seq)
+shade(mu1.PI, MAM.seq1)
+abline(v=0, typ=3)
 ```
 
-
+Next model checks for the divorce rate at the function of the marriage rate
 ```{r}
-d$Marriage.s <- (d$Marriage - mean(d$Marriage))/sd(d$Marriage)
-
 m5.2 <- map(
   alist(
-    Divorce ~ dnorm(mu, sigma),
-    mu <- a + bR * Marriage.s,
-    a ~ dnorm(10,10),
-    bR ~ dnorm(0,1),
-    sigma ~ dunif(0,10)
+    D ~ dnorm(mu, sigma),
+    mu <- a + bM*M,
+    a ~ dnorm(0, 0.2),
+    bM ~ dnorm(0,0.5),
+    sigma ~ exp(1)
   ), data = d
 )
 precis(m5.2)
 ```
 
 ```{r}
-MAM.seq <- seq(from=-3, to=3.5, length.out=30)
-mu <- link(m5.2, data = data.frame(Marriage.s=MAM.seq))
-mu.PI <- apply(mu, 2, PI)
+MAM.seq2 <- seq(from=-3, to=3.5, length.out=30)
+mu2 <- link(m5.2, data = data.frame(Marriage.s=MAM.seq2))
+mu2.PI <- apply(mu2, 2, PI)
 
 #plot
 plot(Divorce ~ Marriage.s, data=d, col=rangi2)
 abline(m5.2)
-shade(mu.PI, MAM.seq)
+shade(mu2.PI, MAM.seq2)
 ```
+
 
 But we're keeping the variables separate here...
 What is the predictive value of a variable, once I already know all of the other predictor variables?
@@ -102,24 +149,44 @@ m is the predicted means
 ```{r}
 m5.3 <- map(
   alist(
-    Divorce ~ dnorm(mu, sigma),
-    mu <- a + bA * MedianAgeMarriage.s + bR * Marriage.s,
-    a ~ dnorm(10,10),
-    bA ~ dnorm(0,1),
-    bR ~ dnorm(0,1),
-    sigma ~ dunif(0,10)
+    D ~ dnorm(mu, sigma),
+    mu <- a + bM*M + bA*A,
+    a ~ dnorm(0,0.2),
+    bM ~ dnorm(0,0.5),
+    bA ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
   ), data = d
 )
 precis(m5.3)
 ```
 
 ```{r}
-plot(precis(m5.3))
+plot(
+  coeftab(m5.1, m5.2, m5.3),
+  par= c("bA", "bM")
+)
 ```
 
 interpretation: "Once we know the median age at marriage for a State, there is little or no additional predictive power in also knowing the rate of marriage in that State."
 
+If you didn't have access to age-marriage data, there would be value in knowing the marriage rate. However, this is demonstrating there is little (or no) causal path between marriage rate and divorce. The appearence is caused by the relationship between age of marriage and marriage rate. 
+
+*rethinking section that investigates this
+```{r}
+N <- 50 #number of simluated states
+age <- rnorm(N) #sim A
+mar <- rnorm(N, age) # sim A -> M
+div <- rnorm(N, age) # sim A -> D
+#this should generate similar relationships between M -> D
+```
+
+
 #### 5.1.3 Plotting multivariate posteriors
+In previous chapters we used scatters of the data, then we overlaid regression lines and intervals to both:
+(1) visualize the size of the association between the predictor and outcome
+(2) get a crude sense of the ability of the model to predict the individual observations
+
+Lots of potential plots, here are 3 major categories 
 *1 Predictor residual plots - look for fishy fits
 *2 Conterfactual plots - show implied predictions for imaginary experiments in which the different predictor variables can be changed independently of one another.
 *3 Posterior prediction plots - show model-based predictions against raw data, or otherwise display the error in prediction
@@ -133,143 +200,108 @@ Use the other predictor to model the residuals for other variable...
 #make the prediction model
 m5.4 <- map(
   alist(
-    Marriage.s ~ dnorm(mu, sigma),
-    mu <- a + b*MedianAgeMarriage.s,
-    a ~ dnorm(0,10),
-    b ~ dnorm(0, 1),
-    sigma ~ dunif(0, 10)
+    M ~ dnorm(mu, sigma),
+    mu <- a + bAM*A,
+    a ~ dnorm(0,0.2),
+    bAM ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
   ), data = d)
 
 #compute residuals by subtracting observed marraige rates in each State from the predicted rate, based upon using age at marraige:
 
 #comput expected value at MAP, for each State
-mu <- coef(m5.4)['a'] + coef(m5.4)['b']*d$MedianAgeMarriage.s
+mu <- link(m5.4)
+mu_mean <- apply(mu, 2, mean)
 #compute residual for each State
-m.resid <- d$Marriage.s - mu
+mu_resid <- as.vector(d$M) - mu
 ```
 
-make hte plots
+make the plot. There are many more plots that would be great to make, I'm just not there yet.
 ```{r}
-plot(Marriage.s ~ MedianAgeMarriage.s, d, col=rangi2)
+#figure 5.3
+plot(M ~ A, d, col=rangi2)
 abline(m5.4)
 #loop over states
-for (i in 1:length(m.resid)) {
-  x <- d$MedianAgeMarriage.s[i] #location of x segment
-  y <- d$Marriage.s[i] #observed endpoint of line segment
+for (i in 1:length(mu_resid)) {
+  x <- d$A[i] #location of x segment
+  y <- d$M[i] #observed endpoint of line segment
   #draw line segment
-  lines(c(x,x), c(mu[i], y), lwd = 0.5, col=col.alpha("black",0.7))
+  lines(c(x,x), c(mu_mean[i], y), lwd = 0.5, col=col.alpha("black",0.7))
 }
 ```
 
-I need to review statistical anlaysis and remember what I'm looking for in these plots.
+(refer to figure 5.2 in 2nd edition of the book)
+So they regress the two predictor variables on eachother - top row
+Then regress the divorce rate is regressed on those residuals 
+"the residual variation in marriage rate shows no association with divorce rate"
+"divorce rate on age at marraige residuals, showing remaining variation among the residuals. This variation is assocaited with divorce rate"
 
+So if you regress marriage rate by age at marriage, that explains all of the relationship marriage rate has with divorce
+But if you regress age of marriage by marriage rate, there is still a relationship between age of marriage and divorce rate
+What's happening here is like a "where is the variation explained" plots
 
 ##### 5.1.3.2 Counterfactual plots
 See how the predictions change as you change only one prediction at a time.
+Also see how the model perforns at more extreme values that were unobserved.
 
-Show the impact of changes in Marriage.s on predictions (note: predictions and not on divorce rate itself)
+Draw a pair of counterfactual plots for the divorce model. First showing the impact of changes in M (marriage rate) on predictions.
 ```{r}
 #prepare new counterfactual data
-A.avg <- mean(d$MedianAgeMarriage.s)
-R.seq <- seq(from =-3, to=3, length.out=30)
-pred.data <- data.frame(
-  Marriage.s=R.seq,
-  MedianAgeMarriage.s=A.avg
+M_seq <- seq(from=-2, to=2, length.out = 30)
+pred_data <- data.frame(
+  M = M_seq,
+  A = 0
 )
-#
-
 
 #compute counterfactual mean divorce (mu)
-mu <- link(m5.3, data=pred.data)
-#"computes the value of each linear model at each sample for each case in the data using inverse link function"
-
-mu.mean <- apply(mu, 2, mean)
-mu.PI <- apply(mu, 2, PI)
+mu <- link(m5.3, data=pred_data)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
 
 #simulate conterfactual divorce outcomes
-R.sim <- sim(m5.3, data=pred.data, n=1e4)
-```
+D_sim <- sim(m5.3, data=pred_data, n=1e4)
+D_PI <- apply(D_sim, 2, PI)
 
-Plot this
-```{r}
-R.PI <- apply(R.sim, 2, PI)
-
-#display predictions, hiding raw data with type="n"
-plot(Divorce ~ Marriage.s, data=d, type="n")
-mtext("MedianAgeMarriage.s = 0")
-lines(R.seq, mu.mean)
-shade(mu.PI, R.seq)
-shade(R.PI, R.seq)
-```
-
-Plot shows change in predicted mean across values of a single predictor, holding the other predictor constant at its mean value
-I want to think of these just plots of the line, but I think the distinction has to do with holding the other variable constant at its mean value.
-
-```{r}
-output_var = "Divorce"
-input_list = c("MedianAgeMarriage.s", "Marriage.s")
+#display predictions, hiding raw data with type = "n"
+plot(D ~ M, data=d, type="n")
+mtext("Median age marriage (sd) = 0")
+lines(M_seq, mu_mean)
+shade(mu_PI, M_seq)
+shade(D_PI, M_seq)
 ```
 
 ```{r}
-#function to make counterfactual plots
-#can't quite get this to work
+#prepare new counterfactual data
+A_seq <- seq(from=-2, to=2, length.out = 30)
+pred_data <- data.frame(
+  A = A_seq,
+  M = 0
+)
 
-counterfactual_plots <- function(data, output_var, input_list, lin_stan_model){
-#loop through each input variable
+#compute counterfactual mean divorce (mu)
+mu <- link(m5.3, data=pred_data)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
 
-  for (i in 1:length(input_list)){
-    R.avg <- mean(select(data, input_list[i]))
-    A.seq <- seq( from=-3, to=3.5, length.out=30) 
+#simulate conterfactual divorce outcomes
+D_sim <- sim(m5.3, data=pred_data, n=1e4)
+D_PI <- apply(D_sim, 2, PI)
 
-    temp.data <- data.frame( 
-        R.avg=R.avg, 
-        A.seq = A.seq 
-    ) 
-
-    mu <- link( lin_stan_model, data=temp.data) 
-    mu.mean <- apply( mu, 2, mean)
-    mu.PI <- apply( mu, 2, PI) 
-    A.sim <- sim( lin_stan_model, data=temp.data, n=1e4) 
-    A.PI <- apply( A.sim, 2, PI) 
-
-    eqn = output_var + 
-    plot( paste(output_var, "~ ", A.seq), data, type="n") 
-    mtext( paste(input_list[1], "= 0")) 
-    lines( A.seq, mu.mean) 
-    shade( mu.PI, A.seq) 
-    shade( A.PI, A.seq)
-}
-}
+#display predictions, hiding raw data with type = "n"
+plot(D ~ A, data=d, type="n")
+mtext("Median age marriage (sd) = 0")
+lines(A_seq, mu_mean)
+shade(mu_PI, A_seq)
+shade(D_PI, A_seq)
 ```
 
-```{r}
-counterfactual_plots(d, output_var, input_list, m5.3)
-```
+Above what we did was build a new list of data taht describe the counterfactual cases we wish to simulate predictions for. In this case we were holding the other variable constatnt. They don't display data becuase they are counterfactual.
 
+Just to talk alound about what it's showing here...
+*the dark center line is the prediction interval (counterfactual divorce mean prediction)
+*the lighter shading is showing the prediction interval.... so the 89% confidence... something related to the values expected... 
 
-```{r}
-R.avg <- mean( d$Marriage.s) 
-A.seq <- seq( from=-3, to=3.5, length.out=30) 
-
-pred.data2 <- data.frame( 
-  Marriage.s=R.avg, 
-  MedianAgeMarriage.s=A.seq 
-) 
-
-mu <- link( m5.3, data=pred.data2) 
-mu.mean <- apply( mu, 2, mean) 
-mu.PI <- apply( mu, 2, PI) 
-A.sim <- sim( m5.3, data=pred.data2, n=1e4) 
-A.PI <- apply( A.sim, 2, PI) 
-
-plot( Divorce ~ MedianAgeMarriage.s, data=d, type="n") 
-mtext( "Marriage.s = 0") 
-lines( A.seq, mu.mean) 
-shade( mu.PI, A.seq) 
-shade( A.PI, A.seq)
-```
-
-Really need to think about the direction of causality. Plots may give unrealistic view of how changing a variable will affect the output variable.
+It's important too to remember the limits of these small world models. Is it possible to change median age of marriage without also changing the marraige rate? If we raised the minimum age of marriage, we'd probably also affect the marriage rate. 
 
 
  ##### 5.1.3.3 Posterior prediction plots
@@ -287,43 +319,28 @@ Really need to think about the direction of causality. Plots may give unrealisti
 mu <- link(m5.3)
 
 #summarize samples across cases
-mu.mean <- apply(mu, 2, mean)
-mu.PI <- apply(mu, 2, PI)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
 
 #simulate observations
 #again, no new data, so uses original data
-divorce.sim <- sim(m5.3, n=1e4)
-divorce.PI <-  apply(divorce.sim, 2, PI)
+D_sim <- sim(m5.3, n=1e4)
+D_PI <- apply(D_sim, 2, PI)
 ```
  
  simpliest way to show model is to plot predictions against observed.
  
 line shows perfect prediction and line segments for the confidence interval of each prediction
 ```{r}
-plot( mu.mean ~ d$Divorce, col=rangi2, ylim=range(mu.PI), xlab="Observed divorce", ylab="Predicted divorce") 
+plot( mu_mean ~ d$D, col=rangi2, ylim=range(mu_PI), xlab="Observed divorce", ylab="Predicted divorce") 
 abline( a=0, b=1, lty=2) 
 for (i in 1:nrow(d)) 
-  lines( rep(d$Divorce[i],2), c(mu.PI[1,i],mu.PI[2,i]), col=rangi2)
+  lines( rep(d$D[i],2), c(mu_PI[1,i],mu_PI[2,i]), col=rangi2)
 ```
+This plot shows that I'm under-predicting high divorce rate states, and over-predicting lower divorce rate states
  
- So I'm under-predicting high divorce rate states, and over-predicting lower divorce rate states
- 
-```{r}
-#compute residuals 
-divorce.resid <- d$Divorce - mu.mean 
-#get ordering by divorce rate 
-o <- order(divorce.resid) 
-#make the plot 
-dotchart( divorce.resid[o], labels=d$Loc[o], xlim=c(-6,5), cex=0.6) 
-abline( v=0, col=col.alpha("black",0.2)) 
-for (i in 1:nrow(d)) { 
-  j <- o[i] 
-  #which State in order 
-  lines( d$Divorce[j]-c(mu.PI[1,j],mu.PI[2,j]), rep(i,2))
-  points(d$Divorce[j]-c(divorce.PI[1,j],divorce.PI[2,j]), rep(i,2), pch=3, cex=0.6, col="gray") 
-  }
-#Average prediction error (residuals) against number of Waffle House per capita, with superimposed regression of the two variables
-```
+ Rethinking: stats, what is it good for?
+ Really the only thing stats gets you is a quantitative explaination for where uncertainty came from. "Rounds of model criticism and rvision embody the real tests of scientific hypotheses, while the statistical procedures often called "tests" are small components of the conversation." 
  
  A neat aside about causal variable creating spurious relationships:
 ```{r}
@@ -344,32 +361,77 @@ m <- lm(y ~ x_real + x_spur, data = d)
 summary(m)
 ```
  
- ### 5.2 Masked relationship
- Trying to measure the direct influences of multiple factors on an outcome, when none of those influences is apparant from bivariate relationships. (common for oppositely correlated predictors)
  
+ 
+ ### 5.2 Masked relationship
+Trying to measure the direct influences of multiple factors on an outcome, when none of those influences is apparant from bivariate relationships. (common for oppositely correlated predictors)
+
 ```{r}
 data(milk)
 d <- milk
 str(milk)
-dcc <- d[complete.cases(d),]
+```
+
+go ahead and standardize the variables 
+```{r}
+d$K <- scale(d$kcal.per.g) 
+d$N <- scale(d$neocortex.perc)
+d$M <- scale(log(d$mass))
 ```
 
 The question here is to what extent energy content of milk, measured here by kilocalories, is related to the percent of the brain mass that is neocortex. Neocortex is the gray, outer part of the brain that is particularly elaborated in mammals and especially primates. We’ll end up needing female body mass as well, to see the masking that hides the relationships among the variables.
 
 Set up regression between kilocalories and neocortex percent
 ```{r}
+m5.5_draft <- map(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N,
+    a ~ dnorm(0, 1),
+    bN ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ), data = d)
+```
+
+Nasty error message because we have missing values in the dataset
+```{r}
+d$neocortex.perc
+```
+
+```{r}
+dcc <- d[complete.cases(d$K, d$N, d$M), ]
+str(dcc)
+```
+
+```{r}
+m5.5_draft <- map(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N,
+    a ~ dnorm(0, 1),
+    bN ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ), data = dcc)
+```
+
+He says to conisder the priors first, but I'm (unfortuantley) not sure specifically what this means and the function doesn't work yet, so I'm going to dig in here between edition 1 and edition 2.
+
+My best guess so far is that somewhere in the quap() model fit, there exists the list of lines (alpha and betas) which you can plot to see if they make sense.
+Long story short, he ends up saying these priors are too uninformed, and refits m5.5 with more informed priors
+
+```{r}
 m5.5 <- map(
   alist(
-    kcal.per.g ~ dnorm(mu, sigma),
-    mu <- a + b*neocortex.perc,
-    a ~ dnorm(0, 100),
-    b ~ dnorm(0, 1),
-    sigma ~ dunif(0, 1)
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N,
+    a ~ dnorm(0, 0.2),
+    bN ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
   ), data = dcc)
-precis(m5.5, digits = 3)
+precis(m5.5)
 ```
-Very weak relationship (b is near zero and has a wide interval)
 
+The relationship here is weak and imprescies (low mean and high sd)
 
 ```{r}
 np.seq <- 0:100 
@@ -417,4 +479,43 @@ lines( np.seq, mu.mean)
 lines( np.seq, mu.PI[1,], lty=2) 
 lines( np.seq, mu.PI[2,], lty=2)
 ```
+
+
+
+
+## 5.7 Practice 
+
+5E1. Which of the linear models below are multiple linear regressions?  
+(1) µi = α + βxi  
+(2) µi = βxxi + βzzi  
+(3) µi = α + β(xi − zi)  
+(4) µi = α + βxxi + βzzi  
+
+Not 1, it only has one predictor
+2 & 3 are, there are two predictors. 2 just has a 0 intercept
+3 is not multiple linear regression either because there is a transformation (xi - zi) combining two variables into one.
+
+5E2. Write down a multiple regression to evaluate the claim: 
+Animal diversity is linearly related to  latitude, but only after controlling for plant diversity. You just need to write down the model definition.  
+
+5E3. Write down a multiple regression to evaluate the claim: 
+Neither amount of funding nor size  of laboratory is by itself a good predictor of time to PhD degree; but together these variables are both  positively associated with time to degree. 
+
+Write down the model definition and indicate which side of  zero each slope parameter should be on.  
+
+
+5E4. Suppose you have a single categorical predictor with 4 levels (unique values), labeled A, B, C  and D. 
+Let Ai be an indicator variable that is 1 where case i is in category A. 
+Also suppose Bi, Ci,  and Di for the other categories. 
+
+Now which of the following linear models are inferentially equivalent  ways to include the categorical variable in a regression? Models are inferentially equivalent when it’s  possible to compute one posterior distribution from the posterior distribution of another model.  
+
+(1) µi = α + βAAi + βBBi + βDDi  
+(2) µi = α + βAAi + βBBi + βCCi + βDDi 
+(3) µi = α + βBBi + βCCi + βDDi  
+(4) µi = αAAi + αBBi + αCCi + αDDi  
+(5) µi = αA(1 − Bi − Ci − Di) + αBBi + αCCi + αDDi 
+
+
+
 

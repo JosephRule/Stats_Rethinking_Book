@@ -1,0 +1,487 @@
+---
+title: "Ch6_2ndEdition"
+output: html_document
+---
+
+```{r}
+library(rethinking)
+```
+
+The 6th chapter of the 2nd edition is very different from that of the 1st edition. We're going to talk a lot more about causal diagrams (which is neat)
+
+Discussion on Berkson’s paradox, aka the "selection-distortion" effect.
+
+Here’s a simple simulation to illustrate the point. Suppose a grant review panel receives 200 proposals for scientific research. Among these proposals, there is no correlation at all between trustworthiness (rigor, scholarship, plausibility of success) and newsworthiness (so- cial welfare value, public interest). The panel weighs trustworthiness and newsworthiness equally. Then they rank the proposals by their combined scores and select the top 10% for funding.
+
+```{r}
+N <- 200 # num grant proposals
+p <- 0.1 # proportion to select
+# uncorrelated newsworthiness and trustworthiness 
+nw <- rnorm(N)
+tw <- rnorm(N)
+# select top 10% of combined scores
+s<-nw+tw #totalscore
+q <- quantile( s , 1-p ) # top 10% threshold 
+selected <- ifelse( s >= q , TRUE , FALSE )
+cor( tw[selected] , nw[selected] )
+
+d <- data.frame(cbind(nw, tw, as.factor(selected)))
+
+ggplot(d,  aes(x=nw, y=tw, col=selected)) +
+  geom_point() +
+  geom_smooth(method="lm")
+```
+
+This is an interesting problem. So, I often say "prioritize tests based on how easy they are and how much impact the intervention might have". So the two become negatively correlated (easier tests have little impact and vice versa) because of how we're selecting the sample. "This can mislead us into believing that there is a negative association between newsworthiness and trustworthiness in general, when in fact it is just a consequence of conditioning on some variable" (total score).  This selection-distortion effect can happen within a model because of a "collider bias" 
+
+This chapter is about adding too many variables and will cover multicollinearity, post-treatment bias, and collider bias. 
+He also covers instrumental variables (cool)
+
+## 6.1 Multicollinearity
+
+Why not fit all the data?
+If multiple variables are highly correlated, including them all will cause their posterior distributions to look like none of them are relevant. The model will work fine for prediction, but won't say much about why it's working.
+
+### 6.1 Multicollinearity legs
+Made up example about how the length of both your legs are predictive of overall height, but the length of your two legs are highly colinaer.
+```{r}
+N <- 100
+set.seed(909)
+height <- rnorm(N,10,2)
+leg_prop <- runif(N,0.4,0.5)
+leg_left <- leg_prop*height +
+    rnorm( N , 0 , 0.02 )
+leg_right <- leg_prop*height +
+    rnorm( N , 0 , 0.02 )
+d <- data.frame(height,leg_left,leg_right)
+```
+
+With how we simluated the data, we should expect to see the beta value that measures the association of a leg with height to end up around the average height (10) divided by 45% of the average height (45%). 10/4.5 = about 2.2
+```{r}
+m6.1 <- map(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + bl*leg_left + br*leg_right ,
+        a ~ dnorm( 10 , 100 ) ,
+        bl ~ dnorm( 2 , 10 ) ,
+        br ~ dnorm( 2 , 10 ) ,
+        sigma ~ dexp( 1 )
+),
+    data=d )
+plot(precis(m6.1))
+```
+
+It looks like both predictors are garbage (in terms of value and reliability) for explaining height, but really what we're showing here is "what is the value of knowing each predictor, after already knowing all of the other predictors?" We don't get a whole lot of additional information 
+
+The "true" value comes out in the sum of the posterior
+```{r}
+post <- extract.samples(m6.1)
+plot(bl ~ br, post, col=col.alpha(rangi2, 0.1), pch=16)
+
+sum_blbr <- post$bl + post$br
+dens( sum_blbr , col=rangi2 , lwd=2 , xlab="sum of bl and br" )
+```
+
+Fit the model using only the left leg
+```{r}
+#sometimes this has trouble converging 
+m6.2 <- map(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + bl*leg_left,
+        a ~ dnorm( 10 , 100 ) ,
+        bl ~ dnorm( 2 , 10 ) ,
+sigma ~ dexp( 1 ) ),
+    data=d )
+precis(m6.2)
+```
+
+### 6.1.2 multicolinear milk
+```{r}
+data(milk)
+d  <- milk
+d$K <- scale(d$kcal.per.g)
+d$F <- scale(d$perc.fat)
+d$L <- scale(d$perc.lactose)
+```
+
+model kcal.per.g as a fucntion of perc.fat and per.lactose (these are going to be highly colinear)
+```{r}
+m6.3 <- map(
+    alist(
+        K ~ dnorm( mu , sigma ) ,
+        mu <- a + bF*F ,
+        a ~ dnorm( 0 , 0.2 ) ,
+        bF ~ dnorm( 0 , 0.5 ) ,
+        sigma ~ dexp( 1 )
+) , data=d )
+# kcal.per.g regressed on perc.lactose
+m6.4 <- map(
+    alist(
+        K ~ dnorm( mu , sigma ) ,
+        mu <- a + bL*L ,
+        a ~ dnorm( 0 , 0.2 ) ,
+        bL ~ dnorm( 0 , 0.5 ) ,
+        sigma ~ dexp( 1 )
+) , data=d )
+precis( m6.3 )
+precis( m6.4 )
+```
+
+```{r}
+pairs(~ kcal.per.g + perc.fat + perc.lactose, data=d, col=rangi2)
+```
+
+```{r}
+m6.5 <- map(
+    alist(
+        K ~ dnorm( mu , sigma ) ,
+        mu <- a + bF*F + bL*L ,
+        a ~ dnorm( 0 , 0.2 ) ,
+        bF ~ dnorm( 0 , 0.5 ) ,
+        bL ~ dnorm( 0 , 0.5 ) ,
+        sigma ~ dexp( 1 )
+),
+    data=d )
+plot(precis( m6.5 ))
+```
+
+```{r}
+library(dagitty)
+```
+
+```{r}
+dags6.1 <- dagitty( "dag {
+  D -> F
+  D -> L
+  L -> K
+  F -> K
+}")
+coordinates(dags6.1) <- list(x=c(L=0, K=1, F=2, D=1), y=c(L=0, K=1, F=0, D=0))
+plot(dags6.1)
+```
+The hidden variable here "D" is "Density" - so mammals are making a trade off between calorie rich milk, fed infrequenty or watered down milk, fed frequenty. 
+
+There is a quite long tangent about "how much colinearity is too much". The form that too much takes is that the variance of the posterior distribution increases (exponentially) with increasing colinearity. 
+```{r}
+data(milk)
+d <- milk
+sim.coll <- function( r=0.9 ) {
+    d$x <- rnorm( nrow(d) , mean=r*d$perc.fat ,
+        sd=sqrt( (1-r^2)*var(d$perc.fat) ) )
+    m <- lm( kcal.per.g ~ perc.fat + x , data=d )
+    sqrt( diag( vcov(m) ) )[2] # stddev of parameter
+}
+rep.sim.coll <- function( r=0.9 , n=100 ) {
+    stddev <- replicate( n , sim.coll(r) )
+    mean(stddev)
+}
+r.seq <- seq(from=0,to=0.99,by=0.01)
+stddev <- sapply( r.seq , function(z) rep.sim.coll(r=z,n=100) )
+plot( stddev ~ r.seq , type="l" , col=rangi2, lwd=2 , xlab="correlation" )
+```
+
+You run into problems w/multicolinearity when fitting models - the problem is called "non-identifiability". The structure of the data and model do not make it possible to estimate a parameter's value. 
+
+### 6.2 Post-Treatment bias
+The previous mistakes were "ommitted variable bias". Post-treatment bias has to do with when a variable used for prediction is actually a causal impact of a treatment. The example here is with plants who receive an anti-fungal treatment. Plants are measured at h0 and h1 (time 0 and time 1). Some plants are given the treatment. There is also an idicator variable for if the plant has the fungus or not. This fungus variable is really caused by the treatment, so it doesn't help when trying to make inference on whether the treatment allows the plant to grow more/better. 
+
+```{r}
+set.seed(71)
+#Number of plants
+N <- 100
+
+#simulate initial heights
+h0 <- rnorm(N, 10, 2)
+
+#assign treatments and simulate fungus and growth
+treatment <- rep(0:1, each=N/2)
+fungus <- rbinom(N, size = 1, prob = 0.5 - treatment*0.4)
+h1 <- h0 + rnorm(N, 5-3*fungus)
+
+#make the data frame
+d <- data.frame(h0=h0, treatment=treatment, fungus=fungus, h1=h1)
+precis(d)
+```
+
+### A prior is born
+We have to pretend that we don't know the data generating process (above). How should we build priors? List some physical realities:
+*h1 > h0, at some proportion
+  *if they doubled in height, p = 2
+  *p > 0 because it's a proportion
+  *p > 1 because we shouldn't be killing plants here
+
+Use lnrom distribution for this proportion
+```{r}
+sim_p <- rlnorm(1e4, 0, 0.25)
+precis(data.frame(sim_p))
+```
+The simulated data would expect anything from 40% shrinkage to 50% growth (look at the intervals)
+
+Fit the model w/out fungus:
+```{r}
+m6.6 <- map(
+  alist(
+    h1 ~ dnorm(mu, sigma),
+    mu <-  h0 * p ,
+    p ~ dlnorm(0, 0.25),
+    sigma ~ dexp(1)
+    ), data=d)
+precis(m6.6)
+```
+
+Fit the model with fungus:
+```{r}
+m6.7 <- map(
+  alist(
+    h1 ~ dnorm(mu, sigma),
+    mu <-  h0 * p ,
+    p <- a + bt*treatment + bf*fungus,
+    a ~ dlnorm(0, 0.2),
+    bt ~ dnorm(0, 0.5),
+    bf ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+    ), data=d)
+precis(m6.7)
+```
+bt is solidly zero. What's happening here is that the fungus is capturing the effect. However, the treatment wasn't the fungus. 
+
+### 6.2.2 Blocked by consequence
+previous model is answering: "Once we laready know whether or not a plant developed fungus, does soil treatment matter?" The answer is "no"
+
+Fit a model to actually determine the treatment effect:
+```{r}
+m6.8 <- map(
+  alist(
+    h1 ~ dnorm(mu, sigma),
+    mu <-  h0 * p ,
+    p <- a + bt*treatment,
+    a ~ dlnorm(0, 0.2),
+    bt ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+    ), data=d)
+precis(m6.8)
+```
+Now the treatment effect is solidly positive. 
+
+### Fungus and d-separation
+plot the DAG
+```{r}
+library(dagitty)
+plant_dag <- dagitty( "dag {
+    H0 -> H1
+    F -> H1
+    T -> F
+}")
+coordinates( plant_dag ) <- list( x=c(H0=0,T=2,F=1.5,H1=1) ,
+                                  y=c(H0=0,T=0,F=1,H1=2) )
+plot( plant_dag )
+```
+
+here, conditioning on F induces d-separation. The d stands for "dependence".
+
+Dagitty can anlayse these diagrams (?!)
+```{r}
+dseparated(plant_dag, "T", "H1")
+dseparated(plant_dag, "T", "H1", "F")
+```
+
+```{r}
+impliedConditionalIndependencies(plant_dag)
+```
+
+_||_ means "independent of" 
+fungus and initial height are independent
+final height is independent of treatment when conditioning on fungus
+
+## 6.3 Collider Bias
+
+This is where adding the variable causes a misleading association
+
+### Collider of false sorrow
+Consider how aging influence happiness
+
+We consider Happiness -> Marriage <- Age
+
+simulate some data with the following ideas:
+(1) Each year, 20 people are born with uniformly distributed happiness values
+(2) Each year, each person ages one year. Happiness does not change
+(3) At age 18, individuals can become married. The odds of marraige each year are proportional to an individual's happiness.
+(4) Once married, an individual remains married
+(5) After age 65, individuals leave the sample (They move to Spain)
+```{r}
+d <- sim_happiness(seed=1977, N_years=1000)
+precis(d)
+```
+
+Trying to investigate "is age related to happiness?" 
+*we think marriage might be an important confound - if married people are more or less happy on average, then we may need to condition on marriage status in order to infer the relationship between age and happiness. 
+
+First remove non-adults and rescale age to that the range from 18 to 65 is one unit
+```{r}
+d2 <- d[ d$age >17, ]
+d2$A <- (d2$age - 18) / (65 - 18)
+```
+
+Age now goes from 0 - 1
+Happiness goes from -2 to +2
+Strongest possible slope is +/- 4
+We can set this as our 95% prior, it's going to capture most (in this case all) of the data
+
+```{r}
+d2$mid <- d2$married + 1
+m6.9 <- quap(
+    alist(
+        happiness ~ dnorm( mu , sigma ),
+        mu <- a[mid] + bA*A,
+        a[mid] ~ dnorm( 0 , 1 ),
+        bA ~ dnorm( 0 , 2 ),
+        sigma ~ dexp(1)
+    ) , data=d2 )
+precis(m6.9,depth=2)
+```
+
+The model is quite sure age is negatively assocaited with happiness 
+
+Now a model w/out marraige included:
+```{r}
+m6.10 <- quap(
+    alist(
+        happiness ~ dnorm( mu , sigma ),
+        mu <- a + bA*A,
+        a ~ dnorm( 0 , 1 ),
+        bA ~ dnorm( 0 , 2 ),
+        sigma ~ dexp(1)
+    ) , data=d2 )
+precis(m6.10)
+```
+
+Now we see (the true condition) that age has no association with happiness.
+
+### 6.3.2 The haunted DAG
+
+We go through a few DAGS about how Parents, Grandparents and U (unknown, neighborhood) are assocaited with Childhood outcomes
+
+```{r}
+N <- 200  # number of grandparent-parent-child triads
+b_GP <- 1 # direct effect of G on P
+b_GC <- 0 # direct effect of G on C
+b_PC <- 1 # direct effect of P on C
+b_U<-2 #directeffectofUonPandC
+```
+
+```{r}
+set.seed(1)
+U <- 2*rbern( N , 0.5 ) - 1
+G <- rnorm( N )
+P <- rnorm( N , b_GP*G + b_U*U )
+C <- rnorm( N , b_PC*P + b_GC*G + b_U*U )
+d <- data.frame( C=C , P=P , G=G , U=U )
+```
+
+Binary neighborhood effect (good or bad)
+Not spending a lot of time discussing priors, moving along to the model
+```{r}
+m6.11 <- map(
+    alist(
+        C ~ dnorm( mu , sigma ),
+        mu <- a + b_PC*P + b_GC*G,
+        a ~ dnorm( 0 , 1 ),
+        c(b_PC,b_GC) ~ dnorm( 0 , 1 ),
+        sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.11)
+```
+
+
+Plot showing when we condition on parental education, gradparent education becomes negatively associated with grandchild education.
+
+
+Now condition the regression on U
+```{r}
+m6.12 <- map(
+    alist(
+        C ~ dnorm( mu , sigma ),
+        mu <- a + b_PC*P + b_GC*G + b_U*U,
+        a ~ dnorm( 0 , 1 ),
+        c(b_PC,b_GC,b_U) ~ dnorm( 0 , 1 ),
+        sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.12)
+```
+
+Grandparents example is of Simpson's paradox. Including another predictor (P in this case) can reverse the direction of association between some other predictor (G) and the outcome (C). Usually, Simpson's paradox is presented in cases where adding the new predictor helps us. But in this case, it misleads us. Simpson's paradox is a statistical phenomenon. To know whether the reversal of the association correctly refeclts causation, we need something more than just a statistical model.
+
+## 6.4 Confronting counfounding
+Confounding is any context in which the association between an outcome Y and a predictor of interest X is not the same as it would be, if we had experimentally determined the values of X. 
+
+### 6.4.1 Shutting the backdoor
+The backdoor refers to closing all confounding paths between some predictor X and the outcome Y.
+We go on to enumerate the types of relationships that make up a DAG:
+(1) Fork:  X <- Z -> Y  
+  Z is a common cause of X and Y, generating a correlation between them. X and Y are independent when conditioned on Z
+(2) Pipe: X -> Z -> Y
+  Same as growth example & post treatment bias. If we condition on Z now, we block the path from X to Y. For both fork and pipe, conditioning on the middle variable blocks the path. 
+(3) Collider: X -> Z <- Y
+  There is no association between X and Y unless you condition on Z. 
+(4) Descendent: X -> Z -> Y & -> K (look at the picture in the book)
+  Controlling for K will also contrl (to a lesser extent) on Z. This is like weakily conditioning on a collider
+  
+### 6.4.2 Two Roads
+
+We make the DAG in the book
+```{r}
+dag_6.1 <- dagitty( "dag {
+    X -> Y <- C
+    X <- U -> B
+    U <- A -> C
+    U -> B <- C
+}")
+coordinates( dag_6.1 ) <- list( x=c(X=0, Y=2, B=1, U=0, C=2, A=1 ) ,
+                                  y=c(X=0, Y=0, B=-1, U=-2, C=-2, A=-3 ) )
+plot(dag_6.1)
+```
+
+To shut the back door we need to condition on a variable, we can condition on A or C (U is unobserved)
+```{r}
+adjustmentSets(dag_6.1, exposure = "X", outcome = "Y")
+```
+
+### 6.4.3 Backdoor Waffles
+Back to the waffle house example
+
+Make a dag
+```{r}
+dag_6.2 <- dagitty( "dag {
+    S -> A -> D
+    S -> M -> D
+    S -> W -> D
+    A -> M
+}")
+
+coordinates( dag_6.2 ) <- list( x=c(A=0, D=2, M=1, S=0, W=2) ,
+                                  y=c(A=0, D=0, M=-1, S=-2, W=-2) )
+plot(dag_6.2)
+```
+
+There are three open backdoor paths between W and D
+```{r}
+adjustmentSets(dag_6.2, exposure = "W", outcome = "D")
+```
+We could control for either A and M or S alone. 
+
+Data cannot tell us if the graph is correct, but we can get some ideas of it the graph is wrong. Check the graph's conditional independencies (pairs of variables that are not associated, once we condition on some other set of variables) and see if they make sense
+```{r}
+impliedConditionalIndependencies(dag_6.2)
+```
+
+Age of Marraige is indpendent of Waffle House when we condition on South (makes sense)
+Divorce is independent of South when conditioned on Age, Marriage Rate, & Waffle House 
+Marriage is independent of Waffle House when conditioned on South
+
+So the dag does suggest that waffle houses don't have an effect on marraige & divorce. We could turn to the data to prove this out.
+
+# 6.5 Summary
+If you're thinking about interpretability and causaility, you need a logical model along with a statistical model. The two will inform and confirm each other as you build intution for the data generating process. 
+
+

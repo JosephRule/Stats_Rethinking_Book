@@ -1,0 +1,51 @@
+---
+title: "Ch10_2ndEdition"
+output: html_document
+---
+
+```{r}
+library(rethinking)
+```
+
+# Chapter 10 - Big Entrophy & The GLM
+
+Chord knotting and entrophy - many more possible ways to produce knotted chords than unknotted chords. Therefore, chords are likely to become knotted. 
+
+Choices with modeling:
+  * Each parameter's prior distribution
+  * a liklihood function (distribution of data)
+  
+Bet on the distribution w/ the biggest entrophy for 3 reasons:
+(1) It is the widest and least informative possible
+  (a) prior - least informative consistent w/ scientific process
+  (b) liklihood - select distribution we'd get by counting up all the ways the data could arise
+(2) Nature produces high entrophy distributions
+(3) It tends to work
+
+GLMs - choose liklihood functions consitent w/ constraints of the process/model
+
+## 10.1 Maximum Entrophy 
+Skipping this section. It's building an intuition for how these models arise naturally. 
+
+## 10.2 Generalized Linear Models
+Gaussian is not the best if variable is discrete or bounded. It can't be relied upon to predict counts
+
+Choose other max entrophy distribtion based on variable constraints
+
+* Reminder that the link function is different from the choice of distribution 
+
+Funny bit on "Histomancy" (plotting variable and determining the distribution). The "Gaussian" assumption is that the residuals look Guassian. Often think "I can use the Poisson here because the mean value doesn't equal the frequency", but this assumption should be true only after conditioning on predictors 
+TBH, I don't quite understand this, I'd like to go ask Yuri.
+
+### 10.2.1 Meet the (Exponential) Family
+Many entrophy functions w/ different sets of constraints
+
+Logistic Regression - Binomial Distribution [0,1]
+
+Linear Regression - Guassian Distribtion (-inf, +inf)
+
+Exponential Dist - [0, +inf) - describes distance and duration in time or space. Probability of event held constant. Useful for event history analysis. How long until the bus comes by? 
+
+Gamma Dist - [0, +inf) - similar to exponential, but can have a peak at zero. If event depends on 2 other exponential distributed events - it might be gamma distributed
+
+Poisson Distribution - Count distribution, binomial w/ large n and small p. Used for counts that never get close to any theoretical maximums. How many busses come by in x time span?

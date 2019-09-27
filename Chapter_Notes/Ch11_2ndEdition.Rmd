@@ -1,0 +1,12 @@
+---
+title: "Ch11_2ndEdition"
+output: html_document
+---
+
+```{r}
+library(rethinking)
+```
+
+# 11 God Spiked the Integers
+
+

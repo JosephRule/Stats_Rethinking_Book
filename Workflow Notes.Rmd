@@ -1,0 +1,58 @@
+---
+title: "Workflow Notes"
+output: html_notebook
+---
+
+This is my attempt at making a workflow or copy/paste document to help with fitting and visualizing these models. There's an awful lot of stuff going on here, so I'm trying to organize my thoughts and make the code easier to grab
+```{r}
+library(rethinking)
+```
+
+Working with waffle house data
+```{r}
+data("WaffleDivorce")
+d <- WaffleDivorce
+```
+
+#normalizing & transforming the data
+```{r}
+#scale()
+d$A <- scale(d$MedianAgeMarriage)
+d$D <- scale(d$Divorce)
+d$M <- scale(d$Marriage)
+```
+
+#find good prior distributions 
+
+For scaled data:
+  *if both outcome and predictor are scaled, intercept should be close to 0
+  *beta = 1 means a 1 sd change of predictor = 1 sd change in outcome. Is this impossibly strong or too weak?
+```{r}
+sd(d$MedianAgeMarriage)
+#additional 1.2 yrs of age would drop divorce rates
+sd(d$Divorce)
+#1.8 pct change in divorce rate
+#tbh, this seems like a judgement call
+```
+
+
+
+#fit Markov chains
+  #prepping the data into a list 
+
+#troubleshooting markov chains
+
+#Model performance and comparison
+  #WAIC
+  #cross-validation
+  #predict new points / fit test data
+
+# visualizing results
+  #coeficient values & intervals
+
+  #target vs mean variable prediction
+  
+  #counterfactual plots
+  
+# Senstivity to priors  
+

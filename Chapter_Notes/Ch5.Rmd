@@ -1,0 +1,920 @@
+---
+title: "Ch5"
+output: html_document
+---
+
+```{r}
+library(rethinking)
+```
+
+
+## Chapter 5
+I'm rewriting a lot of this from the 2nd edition of the book. Which is great, because I had a hard time following the last half of the chapter from the 1st edition. 
+
+Discussion about multiple correlations.
+
+Reasons to do multivariate regression:
+*1. "control" for confounds.(mention of Simpson's Paradox)
+*2. multiple causation - measure effects of multiple variables
+*3. interactions - later topic
+
+We'll be able to identify (1) spurious correlations and (2) masked correlations
+
+### 5.1 Spurious association
+Talking about if marriage rate and/or median marriage age cause divorce. Interesting that we may not be able to answer this question directly, but we do a tap dance & speak like we can.
+
+*standardize the predictor is good practice
+
+```{r}
+data("WaffleDivorce")
+d <- WaffleDivorce
+
+#standardize the variables
+#this is a good step because I don't actually know a lot about how to build priors 
+#for example, what is the prior for alpha (divorce rate intercept)
+#someone might know, but I do know that the divorce rate for the average medianage or marriage rate
+#should just be the average divorce rate (alpha prior is tight around zero)
+d$A <- scale(d$MedianAgeMarriage)
+d$D <- scale(d$Divorce)
+d$M <- scale(d$Marriage)
+```
+
+More discussion about how to set priors:
+
+What about those priors? Since the outcome and the predictor are both standardized, the intercept α should end up very close to zero. 
+What does the prior slope βA imply? If βA = 1, that would imply that a change of one standard deviation in age at marriage is associated likewise with a change of one standard deviation in divorce. 
+To know whether or not that is a strong relationship, you need to know how big a standard deviation of age at marriage is:
+```{r}
+sd(d$MedianAgeMarriage)
+```
+So when βA = 1, a change of 1.2 years in median age at marriage is associated with a full standard deviation change in the outcome variable. That seems like an insanely strong relationship. The prior above thinks that only 5% of plausible slopes more extreme than 1. We’ll simulate from these priors in a moment, so you can see how they look in the outcome space.
+(but also, this is peeking at the data....)
+
+```{r}
+#first fit a model where divorce is a function of age
+m5.1 <- map(
+  alist(
+    D ~ dnorm(mu, sigma),
+    mu <- a + bA * A,
+    a ~ dnorm(0 , 0.2), 
+    bA ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = d)
+precis(m5.1)
+```
+
+We should simulate from the priors using extract.prior.
+Plot lines over the range of 2*sd for both the outcome and predictor.
+```{r}
+set.seed(10)
+#prior <- extract.prior(m5.1)
+#this extract prior code doesn't seem to work yet
+```
+
+Having trouble getting the new package to work, so I'm just going to read though and try to answer questions at the end. Though, I think I like the new layout of this chapter as compared to the previous edition of the book.
+
+tangent on "Directed acyclic graph" (DAG)
+```{r}
+library(dagitty)
+```
+
+```{r}
+dags5.1 <- dagitty( "dag {
+  A -> D
+  A -> M
+  M -> D
+}")
+coordinates(dags5.1) <- list(x=c(A=0, D=1, M=2), y=c(A=0, D=1, M=0))
+plot(dags5.1)
+```
+
+
+compute the percentile interval of the mean
+```{r}
+MAM.seq1 <- seq(from=-3, to=3.5, length.out=30)
+mu1 <- link(m5.1, data = data.frame(A=MAM.seq1))
+mu1.PI <- apply(mu1, 2, PI)
+
+#plot
+plot(D ~ A, data=d, col=rangi2)
+abline(m5.1)
+shade(mu1.PI, MAM.seq1)
+abline(v=0, lty=2)
+```
+
+Next model checks for the divorce rate at the function of the marriage rate
+```{r}
+m5.2 <- map(
+  alist(
+    D ~ dnorm(mu, sigma),
+    mu <- a + bM * M,
+    a ~ dnorm(0, 0.2),
+    bM ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = d
+)
+precis(m5.2)
+```
+
+```{r}
+MAM.seq2 <- seq(from=-3, to=3.5, length.out=30)
+mu2 <- link(m5.2, data = data.frame(M=MAM.seq2))
+mu2.PI <- apply(mu2, 2, PI)
+
+#plot
+plot(D ~ M, data=d, col=rangi2)     
+abline(m5.2)
+shade(mu2.PI, MAM.seq2)
+abline(v=0, lty=2)
+```
+
+
+But we're keeping the variables separate here...
+What is the predictive value of a variable, once I already know all of the other predictor variables?
+
+"rethinking" bit about the idea of controlling for a variable. This implies one variable has the causal effect (which may or may not be true)
+
+#### 5.1.1 Multivariate notation
+
+on matrix notation:
+m = Xb
+b is column vector of parameters
+X is the design matrix
+  *as many rows as data
+  *as man columns as predictors + 1 (intercept)
+m is the predicted means
+
+
+#### 5.1.2 Fitting the model
+```{r}
+m5.3 <- map(
+  alist(
+    D ~ dnorm(mu, sigma),
+    mu <- a + bM*M + bA*A,
+    a ~ dnorm(0,0.2),
+    bM ~ dnorm(0,0.5),
+    bA ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ), data = d
+)
+precis(m5.3)
+```
+
+```{r}
+plot(
+  coeftab(m5.1, m5.2, m5.3),
+  par= c("bA", "bM")
+)
+```
+
+interpretation: "Once we know the median age at marriage for a State, there is little or no additional predictive power in also knowing the rate of marriage in that State."
+
+If you didn't have access to age-marriage data, there would be value in knowing the marriage rate. However, this is demonstrating there is little (or no) causal path between marriage rate and divorce. The appearence is caused by the relationship between age of marriage and marriage rate. 
+
+*rethinking section that investigates this
+```{r}
+N <- 50 #number of simluated states
+age <- rnorm(N) #sim A
+mar <- rnorm(N, age) # sim A -> M
+div <- rnorm(N, age) # sim A -> D
+#this should generate similar relationships between M -> D
+```
+
+
+#### 5.1.3 Plotting multivariate posteriors
+In previous chapters we used scatters of the data, then we overlaid regression lines and intervals to both:
+(1) visualize the size of the association between the predictor and outcome
+(2) get a crude sense of the ability of the model to predict the individual observations
+
+Lots of potential plots, here are 3 major categories 
+*1 Predictor residual plots - look for fishy fits
+*2 Conterfactual plots - show implied predictions for imaginary experiments in which the different predictor variables can be changed independently of one another.
+*3 Posterior prediction plots - show model-based predictions against raw data, or otherwise display the error in prediction
+
+##### 5.1.4 predictor residual plots
+ave prediction error after predictors are included
+when plotted against an outcome, we have a "bivariate regression that has already "controlled" for all of the other predictor variables"
+
+Use the other predictor to model the residuals for other variable...
+```{r}
+#make the prediction model
+m5.4 <- map(
+  alist(
+    M ~ dnorm(mu, sigma),
+    mu <- a + bAM*A,
+    a ~ dnorm(0,0.2),
+    bAM ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = d)
+
+#compute residuals by subtracting observed marraige rates in each State from the predicted rate, based upon using age at marraige:
+
+#comput expected value at MAP, for each State
+mu <- link(m5.4)
+mu_mean <- apply(mu, 2, mean)
+#compute residual for each State
+mu_resid <- as.vector(d$M) - mu
+```
+
+make the plot. There are many more plots that would be great to make, I'm just not there yet.
+```{r}
+#figure 5.3
+plot(M ~ A, d, col=rangi2)
+abline(m5.4)
+#loop over states
+for (i in 1:length(mu_resid)) {
+  x <- d$A[i] #location of x segment
+  y <- d$M[i] #observed endpoint of line segment
+  #draw line segment
+  lines(c(x,x), c(mu_mean[i], y), lwd = 0.5, col=col.alpha("black",0.7))
+}
+```
+
+(refer to figure 5.2 in 2nd edition of the book)
+So they regress the two predictor variables on eachother - top row
+Then regress the divorce rate is regressed on those residuals 
+"the residual variation in marriage rate shows no association with divorce rate"
+"divorce rate on age at marraige residuals, showing remaining variation among the residuals. This variation is assocaited with divorce rate"
+
+So if you regress marriage rate by age at marriage, that explains all of the relationship marriage rate has with divorce
+But if you regress age of marriage by marriage rate, there is still a relationship between age of marriage and divorce rate
+What's happening here is like a "where is the variation explained" plots
+
+##### 5.1.3.2 Counterfactual plots
+See how the predictions change as you change only one prediction at a time.
+Also see how the model perforns at more extreme values that were unobserved.
+
+Draw a pair of counterfactual plots for the divorce model. First showing the impact of changes in M (marriage rate) on predictions.
+```{r}
+#prepare new counterfactual data
+M_seq <- seq(from=-2, to=2, length.out = 30)
+pred_data <- data.frame(
+  M = M_seq,
+  A = 0
+)
+
+#compute counterfactual mean divorce (mu)
+mu <- link(m5.3, data=pred_data)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+
+#simulate conterfactual divorce outcomes
+D_sim <- sim(m5.3, data=pred_data, n=1e4)
+D_PI <- apply(D_sim, 2, PI)
+
+#display predictions, hiding raw data with type = "n"
+plot(D ~ M, data=d, type="n")
+mtext("Median age marriage (sd) = 0")
+lines(M_seq, mu_mean)
+shade(mu_PI, M_seq)
+shade(D_PI, M_seq)
+```
+
+```{r}
+#prepare new counterfactual data
+A_seq <- seq(from=-2, to=2, length.out = 30)
+pred_data <- data.frame(
+  A = A_seq,
+  M = 0
+)
+
+#compute counterfactual mean divorce (mu)
+mu <- link(m5.3, data=pred_data)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+
+#simulate conterfactual divorce outcomes
+D_sim <- sim(m5.3, data=pred_data, n=1e4)
+D_PI <- apply(D_sim, 2, PI)
+
+#display predictions, hiding raw data with type = "n"
+plot(D ~ A, data=d, type="n")
+mtext("Median age marriage (sd) = 0")
+lines(A_seq, mu_mean)
+shade(mu_PI, A_seq)
+shade(D_PI, A_seq)
+```
+
+Above what we did was build a new list of data taht describe the counterfactual cases we wish to simulate predictions for. In this case we were holding the other variable constatnt. They don't display data becuase they are counterfactual.
+
+Just to talk alound about what it's showing here...
+*the dark center line is the prediction interval (counterfactual divorce mean prediction)
+*the lighter shading is showing the prediction interval.... so the 89% confidence... something related to the values expected... 
+
+It's important too to remember the limits of these small world models. Is it possible to change median age of marriage without also changing the marraige rate? If we raised the minimum age of marriage, we'd probably also affect the marriage rate. 
+
+
+ ##### 5.1.3.3 Posterior prediction plots
+ Check the model fit against the observed data
+ 
+ (1) Did the model fit correctly? 
+ Does the model represent the data? Was the model supposed to represent the data?
+ 
+ (2) How does the model fail?
+ 
+ Start by simulating predictions, averaging over the posterior:
+```{r}
+#call link without specifiying new data
+#so that it uses the original data
+mu <- link(m5.3)
+
+#summarize samples across cases
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+
+#simulate observations
+#again, no new data, so uses original data
+D_sim <- sim(m5.3, n=1e4)
+D_PI <- apply(D_sim, 2, PI)
+```
+ 
+ simpliest way to show model is to plot predictions against observed.
+ 
+line shows perfect prediction and line segments for the confidence interval of each prediction
+```{r}
+plot( mu_mean ~ d$D, col=rangi2, ylim=range(mu_PI), xlab="Observed divorce", ylab="Predicted divorce") 
+abline( a=0, b=1, lty=2) 
+for (i in 1:nrow(d)) 
+  lines( rep(d$D[i],2), c(mu_PI[1,i],mu_PI[2,i]), col=rangi2)
+```
+This plot shows that I'm under-predicting high divorce rate states, and over-predicting lower divorce rate states
+ 
+ Rethinking: stats, what is it good for?
+ Really the only thing stats gets you is a quantitative explaination for where uncertainty came from. "Rounds of model criticism and rvision embody the real tests of scientific hypotheses, while the statistical procedures often called "tests" are small components of the conversation." 
+ 
+ A neat aside about causal variable creating spurious relationships:
+```{r}
+N <- 100
+x_real <- rnorm(N)
+x_spur <- rnorm(N, x_real) #x_spur as Guassian with mean = x_real
+y <- rnorm(N, x_real)
+d <- data.frame(y, x_real, x_spur)
+pairs(d)
+```
+ 
+```{r}
+m <- lm(y ~ x_spur, data = d)
+summary(m)
+m <- lm(y ~ x_real, data = d)
+summary(m)
+m <- lm(y ~ x_real + x_spur, data = d)
+summary(m)
+```
+ 
+ 
+ 
+ ### 5.2 Masked relationship
+Trying to measure the direct influences of multiple factors on an outcome, when none of those influences is apparant from bivariate relationships. (common for oppositely correlated predictors)
+
+```{r}
+data(milk)
+d <- milk
+str(milk)
+```
+
+go ahead and standardize the variables 
+```{r}
+d$K <- scale(d$kcal.per.g) 
+d$N <- scale(d$neocortex.perc)
+d$M <- scale(log(d$mass))
+```
+
+The question here is to what extent energy content of milk, measured here by kilocalories, is related to the percent of the brain mass that is neocortex. Neocortex is the gray, outer part of the brain that is particularly elaborated in mammals and especially primates. We’ll end up needing female body mass as well, to see the masking that hides the relationships among the variables.
+
+Set up regression between kilocalories and neocortex percent
+
+m5.5_draft <- map(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N,
+    a ~ dnorm(0, 1),
+    bN ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ), data = d)
+
+
+Nasty error message because we have missing values in the dataset
+```{r}
+d$neocortex.perc
+```
+
+```{r}
+dcc <- d[complete.cases(d$K, d$N, d$M), ]
+str(dcc)
+```
+
+```{r}
+m5.5_draft <- map(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N,
+    a ~ dnorm(0, 1),
+    bN ~ dnorm(0, 1),
+    sigma ~ dexp(1)
+  ), data = dcc)
+```
+
+He says to conisder the priors first, but I'm (unfortuantley) not sure specifically what this means and the function doesn't work yet, so I'm going to dig in here between edition 1 and edition 2.
+
+My best guess so far is that somewhere in the quap() model fit, there exists the list of lines (alpha and betas) which you can plot to see if they make sense.
+Long story short, he ends up saying these priors are too uninformed, and refits m5.5 with more informed priors
+
+```{r}
+m5.5 <- map(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N,
+    a ~ dnorm(0, 0.2),
+    bN ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = dcc)
+precis(m5.5)
+```
+
+The relationship here is weak and imprescies (low mean and high sd)
+
+```{r}
+xseq <- seq( 
+  from=min(dcc$N)-0.15 , 
+  to=max(dcc$N)+0.15 , 
+  length.out=30 )
+mu <- link( m5.5 , data=list(N=xseq) )
+mu_mean <- apply(mu,2,mean)
+mu_PI <- apply(mu,2,PI)
+plot( K ~ N , data=dcc , col="blue", 
+      xlab = "Neocoretx Percent (std)",
+      ylab = "kilocal per g (std)")
+lines( xseq , mu_mean , lwd=2 )
+shade( mu_PI , xseq )
+```
+Upper left hand graph in figure 5.8
+Posterior mean is weakly positive, but it is highly imprecise. Lot's of weakly negative slopes are plausible. 
+
+Now fit it with the log body mass
+
+```{r}
+m5.6 <- map(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bM*M,
+    a ~ dnorm(0, 0.2),
+    bM ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = dcc)
+precis(m5.6)
+```
+
+```{r}
+xseq <- seq( 
+  from=min(dcc$M)-0.15 , 
+  to=max(dcc$M)+0.15 , 
+  length.out=30 )
+mu <- link( m5.6 , data=list(M=xseq) )
+mu_mean <- apply(mu,2,mean)
+mu_PI <- apply(mu,2,PI)
+plot( K ~ M , data=dcc , col="blue", 
+      xlab = "Log Body Mass (std)",
+      ylab = "kilocal per g (std)")
+lines( xseq , mu_mean , lwd=2 )
+shade( mu_PI , xseq )
+```
+Seem to have a stronger relationship here. There is still variance in the slope, but it's definitely a negative relationship 
+
+Now to plot the counterfactual plots...
+Fit the full model
+```{r}
+m5.7 <- map(
+  alist(
+    K ~ dnorm(mu, sigma),
+    mu <- a + bN*N + bM*M, 
+    a ~ dnorm(0, 0.2),
+    bM ~ dnorm(0, 0.5),
+    bN ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ), data = dcc)
+precis(m5.7)
+```
+
+```{r}
+plot( coeftab( m5.5, m5.6, m5.7), pars=c("bM", "bN"))
+```
+We see the uncertainty in both variables when only one of the variables is considered, but when they are both considered, they show a strong result. 
+
+```{r}
+#prepare new counterfactual data
+N_seq <- seq(from=-2, to=2, length.out = 30)
+pred_data <- data.frame(
+  N = N_seq,
+  M = 0
+)
+
+#compute counterfactual mean divorce (mu)
+mu <- link(m5.7, data=pred_data)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+
+#simulate conterfactual divorce outcomes
+K_sim <- sim(m5.7, data=pred_data, n=1e4)
+K_PI <- apply(K_sim, 2, PI)
+
+#display predictions, hiding raw data with type = "n"
+plot(K ~ N, data=d, type="n",
+     xlab = "Neocortex Percent (std)",
+     ylab = "kilocal per g (std)")
+mtext("Counterfactual Holding Mass = 0")
+lines(N_seq, mu_mean)
+shade(mu_PI, N_seq)
+shade(K_PI, N_seq)
+```
+Take a second here to think about the implications...
+Given our model, if we had a animal with their mass being held constant, we would see the energy content of the milk increase with neocoretx size
+
+```{r}
+#prepare new counterfactual data
+M_seq <- seq(from=-2, to=2, length.out = 30)
+pred_data <- data.frame(
+  M = M_seq,
+  N = 0
+)
+
+#compute counterfactual mean divorce (mu)
+mu <- link(m5.7, data=pred_data)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+
+#simulate conterfactual divorce outcomes
+K_sim <- sim(m5.7, data=pred_data, n=1e4)
+K_PI <- apply(K_sim, 2, PI)
+
+#display predictions, hiding raw data with type = "n"
+plot(K ~ M, data=d, type="n",
+     xlab = "Log Body Mass (std)",
+     ylab = "kilocal per g (std)")
+mtext("Counterfactual Holding Neocortex Pct = 0")
+lines(M_seq, mu_mean)
+shade(mu_PI, M_seq)
+shade(K_PI, M_seq)
+```
+We see the opposite happening here. If the brain size is held constant, we would expect larger animals to have milk with less energy content. This is weird...
+
+What's happening here is that both variables are associated with each other. This "masks each variable's association with the outcome, unless both are considered simulataneously"
+
+"does a species that has a high neocortex percent for their body mass have higher milk energy?"
+"does a species that has a higher body mass for their neocortex percent have higher milk energy?" 
+
+There are a couple of potential dags here:
+```{r}
+dags5.2 <- dagitty( "dag {
+  M -> K
+  M -> N
+  N -> K
+}")
+coordinates(dags5.2) <- list(x=c(M=0, K=1, N=2), y=c(M=0, K=1, N=0))
+plot(dags5.2)
+
+dags5.3 <- dagitty( "dag {
+  M -> K
+  N -> M
+  N -> K
+}")
+coordinates(dags5.3) <- list(x=c(M=0, K=1, N=2), y=c(M=0, K=1, N=0))
+plot(dags5.3)
+
+dags5.4 <- dagitty( "dag {
+  U -> N
+  U -> M
+  M -> K
+  N -> K
+}")
+coordinates(dags5.4) <- list(x=c(M=0, K=1, N=2, U=1), y=c(M=0, K=1, N=0, U=0))
+plot(dags5.4)
+
+```
+
+1st body mass influences neocortex pct. Both influence kilocals in milk.
+2nd Neocortex could influence body mass. The two variables end up correlated in the sample.
+3rd There is an unobserved variable U that influences both M and N, producing a correlation between them.
+
+Which graph is right (we don't know. Yikes.)
+
+## 5.3 Categorical variables
+
+Binary categories 
+```{r}
+data(Howell1)
+d <- Howell1
+str(d)
+```
+
+There are two ways to make a model with this information. The first is to use the indicator variable directly inside the linear model, as if it were a typical predictor variable. The effect of an indicator variable is to turn a parameter on for those cases in the category. Simultaneously, the variable turns the same parameter off for those cases in another category. 
+(where male is a predictor = 1 or 0)
+Using this approach means that βm represents the expected difference between males and females in height. 
+Assigning priors can be tough - what is a resonable distribution of difference in heights between males and females? 
+Also this model is assuming the uncertainty is around males (there are more parameter associated with males)
+
+```{r}
+mu_female <- rnorm(1e4,178,20)
+mu_male <- rnorm(1e4,178,20) + rnorm(1e4,0,10)
+precis( data.frame( mu_female , mu_male ) )
+```
+
+Instead, we should really go use an index variable
+```{r}
+d$sex <- ifelse( d$male==1 , 2 , 1 )
+str( d$sex )
+```
+There should be no order implied from the model...
+hi ∼ Normal(μi, σ) 
+μi = αsex[i]
+αj ∼ Normal(178, 20) , for j = 1..2 
+σ ∼ Uniform(0, 50)
+
+```{r}
+m5.8 <- map(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a[sex] ,
+        a[sex] ~ dnorm( 178 , 20 ) ,
+        sigma ~ dunif( 0 , 50 )
+    ) , data=d )
+precis( m5.8 , depth=2 )
+```
+
+```{r}
+post <- extract.samples(m5.8)
+post$diff_fm <- post$a[,1] - post$a[,2]
+precis( post , depth=2 )
+```
+
+the diff_fm is the contrast (the difference between a1 and a2). Probably very useful for comparison of groups...
+No matter how many categories you have, you can compute the contrast between any two by using samples from the posterior to compute their difference. Then you get the posterior distribution of the difference
+
+Next section - multiple categories 
+```{r}
+data(milk)
+d <- milk
+unique(d$clade)
+d$clade_id <- as.integer( d$clade )
+```
+
+```{r}
+d$K <- scale( d$kcal.per.g )
+m5.9 <- map(
+    alist(
+        K ~ dnorm( mu , sigma ),
+        mu <- a[clade_id],
+        a[clade_id] ~ dnorm( 0 , 0.5 ),
+        sigma ~ dexp( 1 )
+    ) , data=d )
+labels <- paste( "a[" , 1:4 , "]:" , levels(d$clade) , sep="" )
+plot( precis( m5.9 , depth=2 , pars="a" ) , labels=labels ,
+    xlab="expected kcal (std)" )
+```
+There's a warning about how you really need to check the contrast before you start calling the difference between categories "significant" 
+```{r}
+post <- extract.samples(m5.9)
+post$diff_old_new <- post$a[,3] - post$a[,2]
+precis( post , depth=2 )
+```
+
+
+## 5.7 Practice 
+
+5E1. Which of the linear models below are multiple linear regressions?  
+(1) µi = α + βxi  
+(2) µi = βxxi + βzzi  
+(3) µi = α + β(xi − zi)  
+(4) µi = α + βxxi + βzzi  
+
+Not 1, it only has one predictor
+2 & 3 are, there are two predictors. 2 just has a 0 intercept
+3 is not multiple linear regression either because there is a transformation (xi - zi) combining two variables into one.
+
+5E2. Write down a multiple regression to evaluate the claim: 
+Animal diversity is linearly related to  latitude, but only after controlling for plant diversity. You just need to write down the model definition.  
+I think this just means that both variables are included in the multiple regression(?)
+Adiversity ~ alpha + B1 * latitude + B2 * Pdiversity
+
+5E3. Write down a multiple regression to evaluate the claim: 
+Neither amount of funding nor size  of laboratory is by itself a good predictor of time to PhD degree; but together these variables are both  positively associated with time to degree. 
+I don't really don't understand the difference going on here... Do not both regressions need to include both variables "when controlled for" and "but together these variables are both positively assocaited with"
+
+Write down the model definition and indicate which side of  zero each slope parameter should be on.  
+So the amount of funding and size both need to be together to be predictive of time for pHD. Both would have positive slopes
+
+5E4. Suppose you have a single categorical predictor with 4 levels (unique values), labeled A, B, C  and D. 
+Let Ai be an indicator variable that is 1 where case i is in category A. 
+Also suppose Bi, Ci,  and Di for the other categories. 
+
+Now which of the following linear models are inferentially equivalent  ways to include the categorical variable in a regression? Models are inferentially equivalent when it’s  possible to compute one posterior distribution from the posterior distribution of another model.  
+
+(1) µi = α + βAAi + βBBi + βDDi  
+(2) µi = α + βAAi + βBBi + βCCi + βDDi 
+(3) µi = α + βBBi + βCCi + βDDi  
+(4) µi = αAAi + αBBi + αCCi + αDDi  
+(5) µi = αA(1 − Bi − Ci − Di) + αBBi + αCCi + αDDi 
+:/ not really sure what's going on here either. I'm tempted to say the equivalent ways are (2) and (3). The difference here is that the intercept is applied on each category (but it would be the same intercept for all)
+
+
+Medium.  
+
+5M1. Invent your own example of a spurious correlation. An outcome variable should be correlated  with both predictor variables. But when both predictors are entered in the same model, the correlation  between the outcome and one of the predictors should mostly vanish (or at least be greatly reduced).  
+
+5M2. Invent your own example of a masked relationship. An outcome variable should be correlated  with both predictor variables, but in opposite directions. And the two predictor variables should be  correlated with one another.  
+
+5M3. It is sometimes observed that the best predictor of fire risk is the presence of firefighters—  States and localities with many firefighters also have more fires. Presumably firefighters do not cause  fires. Nevertheless, this is not a spurious correlation. Instead fires cause firefighters. Consider the  same reversal of causal inference in the context of the divorce and marriage data. How might a high  divorce rate cause a higher marriage rate? Can you think of a way to evaluate this relationship, using  multiple regression?  
+
+5M4. In the divorce data, States with high numbers of Mormons (members of The Church of Jesus  Christ of Latter-day Saints, LDS) have much lower divorce rates than the regression models expected.  Find a list of LDS population by State and use those numbers as a predictor variable, predicting divorce rate using marriage rate, median age at marriage, and percent LDS population (possibly standardized). You may want to consider transformations of the raw percent LDS variable.  
+
+5M5. One way to reason through multiple causation hypotheses is to imagine detailed mechanisms  through which predictor variables may influence outcomes. For example, it is sometimes argued that  the price of gasoline (predictor variable) is positively associated with lower obesity rates (outcome  variable). However, there are at least two important mechanisms by which the price of gas could  reduce obesity. First, it could lead to less driving and therefore more exercise. Second, it could lead to  less driving, which leads to less eating out, which leads to less consumption of huge restaurant meals.  Can you outline one or more multiple regressions
+
+
+Hard. 
+All three exercises below use the same data, data(foxes) (part of rethinking).
+```{r}
+data(foxes)
+d <- foxes
+str(d)
+```
+
+I'm going to scale the data here
+```{r}
+d$F <- scale(d$avgfood)
+d$S <- scale(d$groupsize)
+d$A <- scale(d$area)
+d$W <- scale(d$weight)
+```
+
+81 The urban  fox (Vulpes vulpes) is a successful exploiter of human habitat. Since urban foxes move in packs and  defend territories, data on habitat quality and population density is also included. The data frame has  five columns: 
+(1) group: Number of the social group the individual fox belongs to  
+(2) avgfood: The average amount of food available in the territory  
+(3) groupsize: The number of foxes in the social group  
+(4) area: Size of the territory  
+(5) weight: Body weight of the individual fox  
+
+
+5H1. Fit two bivariate Gaussian regressions, using map: 
+(1) body weight as a linear function of territory size (area), and 
+```{r}
+m5.10 <- map(
+    alist(
+        W ~ dnorm( mu , sigma ) ,
+        mu <- a + bA* A,
+        a ~ dnorm( 0 , 0.2 ) ,
+        bA ~ dnorm(0, 0.5),
+        sigma ~ dexp(1)
+    ) , data=d )
+
+
+MAM.seq <- seq(from=-3, to=3.5, length.out=30)
+mu <- link(m5.10, data = data.frame(A=MAM.seq))
+mu.PI <- apply(mu, 2, PI)
+
+#plot
+plot(W ~ A, data=d, col=rangi2)     
+abline(m5.10)
+shade(mu.PI, MAM.seq)
+```
+Really not a lot going on here...
+
+(2) body weight as a linear function of groupsize (S).
+```{r}
+m5.11 <- map(
+    alist(
+        W ~ dnorm( mu , sigma ) ,
+        mu <- a + bS* S,
+        a ~ dnorm( 0 , 0.2 ) ,
+        bS ~ dnorm(0, 0.5),
+        sigma ~ dexp(1)
+    ) , data=d )
+
+MAM.seq <- seq(from=-3, to=3.5, length.out=30)
+mu <- link(m5.11, data = data.frame(S=MAM.seq))
+mu.PI <- apply(mu, 2, PI)
+
+#plot
+plot(W ~ S, data=d, col=rangi2)     
+abline(m5.11)
+shade(mu.PI, MAM.seq)
+```
+
+Plot the results of these  regressions, displaying the MAP regression line and the 95% interval of the mean. Is either variable  important for predicting fox body weight? 
+The groupsize seems to have a small negative effect 
+
+
+5H2. Now fit a multiple linear regression with weight as the outcome and both area and groupsize  as predictor variables. Plot the predictions of the model for each predictor, holding the other predictor  constant at its mean. 
+```{r}
+m5.12 <- map(
+    alist(
+        W ~ dnorm( mu , sigma ) ,
+        mu <- a + bS*S + bA*A,
+        a ~ dnorm( 0 , 0.2 ) ,
+        bS ~ dnorm(0, 0.5),
+        bA ~ dnorm(0, 0.5),
+        sigma ~ dexp(1)
+    ) , data=d )
+```
+It's asking us to make the counterfactual plots.
+
+
+Counterfactual holding Area = 0
+```{r}
+#prepare new counterfactual data
+S_seq <- seq(from=-2, to=2, length.out = 30)
+pred_data <- data.frame(
+  S = S_seq,
+  A = 0
+)
+
+#compute counterfactual mean weight (mu)
+mu <- link(m5.12, data=pred_data)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+
+#simulate conterfactual weight outcomes
+W_sim <- sim(m5.12, data=pred_data, n=1e4)
+W_PI <- apply(W_sim, 2, PI)
+
+#display predictions, hiding raw data with type = "n"
+plot(W ~ S, data=d, type="n",
+     xlab = "Group Size (std)",
+     ylab = "Weight (std)")
+mtext("Counterfactual Holding Area = 0")
+lines(S_seq, mu_mean)
+shade(mu_PI, S_seq)
+shade(W_PI, S_seq)
+```
+
+
+Counterfactual holding Groupsize = 0
+```{r}
+#prepare new counterfactual data
+A_seq <- seq(from=-2, to=2, length.out = 30)
+pred_data <- data.frame(
+  A = A_seq,
+  S = 0
+)
+
+#compute counterfactual mean weight (mu)
+mu <- link(m5.12, data=pred_data)
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+
+#simulate conterfactual weight outcomes
+W_sim <- sim(m5.12, data=pred_data, n=1e4)
+W_PI <- apply(W_sim, 2, PI)
+
+#display predictions, hiding raw data with type = "n"
+plot(W ~ A, data=d, type="n",
+     xlab = "Area (std)",
+     ylab = "Weight (std)")
+mtext("Counterfactual Holding Group Size = 0")
+lines(A_seq, mu_mean)
+shade(mu_PI, A_seq)
+shade(W_PI, A_seq)
+```
+
+What does this model say about the importance of each variable? Why do you  get different results than you got in the exercise just above? 
+The impact of the variables are masked. It seems likely that the area available has an impact on the group size. As you hold the area constant, the weight decreases with increasing group size (less for per animal). As you hold the group size constant, the weight increases with area size (more hunting opportunities)
+
+5H3. Finally, consider the avgfood variable. Fit two more multiple regressions: 
+(1) body weight  as an additive function of avgfood and groupsize, and 
+```{r}
+m5.13 <- map(
+    alist(
+        W ~ dnorm( mu , sigma ) ,
+        mu <- a + bF*F + bS*S,
+        a ~ dnorm( 0 , 0.2 ) ,
+        bS ~ dnorm(0, 0.5),
+        bF ~ dnorm(0, 0.5),
+        sigma ~ dexp(1)
+    ) , data=d )
+```
+
+(2) body weight as an additive function of  all three variables, avgfood and groupsize and area. 
+```{r}
+m5.14 <- map(
+    alist(
+        W ~ dnorm( mu , sigma ) ,
+        mu <- a + bS*S + bA*A + bF*F,
+        a ~ dnorm( 0 , 0.2 ),
+        bS ~ dnorm(0, 0.5),
+        bA ~ dnorm(0, 0.5),
+        bF ~ dnorm(0, 0.5),
+        sigma ~ dexp(1)
+    ) , data=d )
+```
+
+
+Compare the results of these models to the  previous models you’ve fit, in the first two exercises. 
+(a) Is avgfood or area a better predictor of body  weight? If you had to choose one or the other to include in a model, which would it be? Support your  assessment with any tables or plots you choose.
+```{r}
+plot( coeftab( m5.12, m5.13, m5.14), pars=c("bS", "bA", "bF"))
+```
+Model 14 has a lot of variance in both the Food and Area predictors 
+
+I think I would want to compare the mean intervals for the two models - if we're trying to compare "which model is more predictive" I would want a model with a narrow non-zero mean estimate.
+
+(b) When both avgfood or area are in the same  model, their effects are reduced (closer to zero) and their standard errors are larger than when they  are included in separate models. Can you explain this result? 
+The two variables are highly correlated (probably area impacts avg.food). So the two variables are explaining the same variacne in the model. I'm not sure what other intuition needs to be built here... I see that the estimate of both becomes less certain when both variables are present. I couldn't tell you exactly why. 
+

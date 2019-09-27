@@ -1,0 +1,444 @@
+---
+title: "Ch9_2ndEdition"
+output: html_document
+---
+
+```{r}
+library(rethinking)
+```
+
+# Chapter 9 - Markov Chain Monte Carlo
+
+Used for estimation of posterior distributions
+* Produce samples from the joint posterior w/out maximizing anything
+* Sample directly from teh posterior 
+
+
+## 9.1 Good King Markov & His Island Kingdom
+(Metropolis algorthim)
+* Circle of islands 1-10
+* Can only travel to adjacent islands
+* wants to visit islands in proportion to population
+
+(1) Each week, he decides to stay or move. 
+(2) Coin flip determines proposal island (left or right)
+(3) Count out # of seashells for population of both islands
+(4) If new island > current, he moves. If new island < current, p(move) = #new/#current
+
+Procedure guarantees that w/enough sampling he will visit island w/ the correct proportion
+
+
+## 9.2 Metropolis Algorithm 
+*used to draw samples from a complex target distribution.
+To convert from the previous island analogy: 
+*"islands" -> our objective parameter values
+*"population sizes" -> posterior probabilities at each parameter value
+*"weeks" -> samples taken from the joint posterior of the parameters
+
+### 9.2.1 
+Gibbs > Metropolis, but there are better/other options:
+  * Metropolis-Hastings sampling: Bias the coin toss to lead him to higher posterior probabilities
+  * Gibbs sampling: "Adaptive proposals" - distribution of proposed parameters adjust intelligently (using conjugate pairs)
+  
+### 9.2.2 - High Dimensional Sadness
+:( Gibbs Sampling:
+  *What if I don't want to use conjugate pairs?
+  *1000 - 10000 parameters hurts Gibbs.
+  *Regions of high correlation hurt -> a narrow ridge of high probability
+  
+"Conentration of Measure" - prob. mass of high-dimension distance is far from mode of distribution. Wont get points near the mode, but in the probability mass.
+
+(1) Need MCMC algorithms that focus on entire posterior
+(2) Optimization models that look for mode (quap) are no use at all
+
+It can be dangerous to summarize parameter distributions w/ mode. Need to be hunting for probability density outside of that narrow range.
+
+## 9.3 Hamiltonian Monte Carlo
+
+### 9.3.1 Extension of the MC Analogy
+Valley w/ population proportional to elevation (most people live in valley)
+
+* Vehicle picks a random direction w/ random momentum
+* As it goes uphill, it's forced to stop & turn around
+* After fixed period of time, get out & look around
+* Locations visited inversely proportional to elevation
+* Low autocorrelation between locations visited
+* Requires a continuous (land, parameters?) to do this 
+
+### 9.3.2 Particles in Space
+* HMCMC literally simulated by a frictionless partical in space
+  - almost every proposal accepted (~95%) because it makes intelligent proposals
+  - Energy in system should be "conserved" (reject these proposals)
+  
+toy example w/ X&Y values simulated from the normal
+
+Functions: 
+(1) computes log-probability of the data & parameters 
+  * Top part of Bayes Eqn
+  * Tells the "elevation" of any set of parameter values
+(2) Needs the gradient
+  * aka: the derivative of x & y
+  
+Settings:
+(1) # of Leapfrog Steps:
+  * each curve/path is divided into steps:
+    - many steps -> long paths
+    - few steps -> short paths
+(2) Step Size:
+  * How fine grained a simulation is
+  
+Allow the sampler to warmup first -> try to figure out what is a good step size. This is different from burn-in because we aren't actually sampling here.
+
+No-U-Turn samples - adaptively set the number of leapfrog steps
+
+MCMC needs 5 things to go:
+(1) Function U that returns the negative log-probability of the data at the current position
+(2) Function grad_U that returns the gradient
+(3) step size epislon
+(4) count of leapfrog steps (L)
+(5) Starting position
+
+### 9.3.3 Limitations:
+*requires continuous parameters
+
+## 9.4 Easy MCMC: ulam
+
+Uses same helper functions (extract functions, extract prior, link, sim)
+```{r}
+library(rethinking)
+data(rugged)
+d <- rugged
+d$log_gdp <- log(d$rgdppc_2000)
+dd <- d[ complete.cases(d$rgdppc_2000) , ]
+dd$log_gdp_std <- dd$log_gdp / mean(dd$log_gdp)
+dd$rugged_std <- dd$rugged / max(dd$rugged)
+dd$cid <- ifelse( dd$cont_africa==1 , 1 , 2 )
+```
+
+```{r}
+m8.5 <- quap(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+        a[cid] ~ dnorm( 1 , 0.1 ) ,
+        b[cid] ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp( 1 )
+),
+    data=dd )
+precis( m8.5 , depth=2 )
+```
+
+
+### 9.4.1 Preparation
+Use same focumula as before, but do two additional things
+(1) Preprocess all variable transformations
+(2) Trim off to only used variables
+  (2.5) put things into a list instead of a df
+
+```{r}
+dat_slim <- list(
+    log_gpd_std = dd$log_gdp_std,
+    rugged_std = dd$rugged_std,
+    cid = as.integer( dd$cid )
+)
+str(dat_slim)
+```
+
+### 9.4.2 Sampling from the posterior
+Looks just like before 
+pecis()
+Rhat should converge to 1.0
+n_eff is a crude estimate of sample size
+
+```{r}
+set.seed(1)
+m9.1 <- ulam(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+        a[cid] ~ dnorm( 1 , 0.1 ) ,
+        b[cid] ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp( 1 )
+),
+data=dat_slim , chains=1 )
+```
+
+```{r}
+precis( m9.1 , depth=2 )
+```
+ulam doesn't seem to be working super well here
+
+### 9.4.3 Sampling again, in parallel
+can choose number of chains and cores
+```{r}
+m9.1 <- ulam(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+        a[cid] ~ dnorm( 1 , 0.1 ) ,
+        b[cid] ~ dnorm( 0 , 0.3 ) ,
+        sigma ~ dexp( 0.1 )
+),
+data=dat_slim , chains=4 , cores=4 , iter=1000)
+```
+```{r}
+show(m9.1)
+```
+
+```{r}
+precis( m9.1 , 2 )
+```
+
+Something real not great is happening here...
+
+### 9.4.4 Visualization
+```{r}
+pairs(m9.1)
+```
+
+
+### 9.4.5 Checking the chain
+Look at the trace plot:
+(1) Stationarity - path stays w/in high probability portion of the distribution
+(2) Good Mixing - Rapidly zig-zags, explores the region well, not slowly drifting
+(3) Convergence - Multiple chains stick in the same region
+
+```{r}
+traceplot(m9.1)
+```
+
+
+Trank (Trace Rank) Plot - Very similar, just ranked version of trace plot w/ multiple chains. Lots of intermingling of chains is a good sign.
+```{r}
+trankplot(m9.1, n_cols = 2)
+```
+
+
+## 9.5 Care and Feeding of Your Markov Chain
+
+### 9.5.1 How many samples do you need?
+(1) n_eff is what matters in the end
+(2) depends on what you want to know:
+  * to learn posterior means you don't need a lot
+  * to learn shape of the posterior tail at 99th percentile, you need many more
+  * n_eff = 200 for most regressions
+  
+### 9.5.2 How many chains do you need?
+(1) Debugging a model - use a single chain
+(2) Deciding if a chain is valid - use more than one (3-5 is what I've seen)
+(3) Final run for inference - run 1 long chain
+
+"Four short chains to check, one long chain for inference"
+If rhat > 1.00, chain may not have converged
+
+### 9.5.3 Taming a wild chain
+* putting flat priors can cause problems - give it some suggestive prior
+
+```{r}
+y <- c(-1,1)
+set.seed(11)
+m9.2 <- ulam(
+    alist(
+        y ~ dnorm( mu , sigma ) ,
+        mu <- alpha ,
+        alpha ~ dnorm( 0 , 1000 ) ,
+        sigma ~ dexp( 0.0001 )
+),
+data=list(y=y) , chains=2 )
+```
+
+```{r}
+precis(m9.2)
+```
+
+```{r}
+traceplot(m9.2)
+```
+
+add the weakly informed prior
+```{r}
+set.seed(11)
+m9.3 <- ulam(
+alist(        y ~ dnorm( mu , sigma ) ,
+        mu <- alpha ,
+        alpha ~ dnorm( 1 , 10 ) ,
+        sigma ~ dexp( 1 )
+),
+    data=list(y=y) , chains=2 )
+precis( m9.3 )
+```
+
+```{r}
+traceplot(m9.3)
+```
+
+
+### 9.5.4 Non-identifiable parameters
+* Commonly caused by highly correlated predictors
+```{r}
+set.seed(41)
+y <- rnorm( 100 , mean=0 , sd=1 )
+```
+
+```{r}
+m9.4 <- ulam(
+    alist(
+        y ~ dnorm( mu , sigma ) ,
+        mu <- a1 + a2 ,
+        a1 ~ dnorm( 0 , 1000 ),
+        a2 ~ dnorm( 0 , 1000 ),
+        sigma ~ dexp( 1 )
+),
+data=list(y=y) , chains=2 )
+```
+
+```{r}
+precis( m9.4 )
+```
+
+Regularizing weak priors help us (but I wish I could get them to help above)
+```{r}
+m9.5 <- ulam(
+    alist(
+        y ~ dnorm( mu , sigma ) ,
+        mu <- a1 + a2 ,
+        a1 ~ dnorm( 0 , 10 ),
+        a2 ~ dnorm( 0 , 10 ),
+        sigma ~ dexp( 1 )
+),
+    data=list(y=y) , chains=2 )
+precis( m9.5 )
+```
+
+```{r}
+traceplot(m9.4)
+traceplot(m9.5)
+```
+
+## 9.6 Summary
+* MCMC and Gibbs sampling, and Hamiltonian Monte Carlo.
+* Need to try out map2stan
+* How to diagnose problems with MCMC
+
+## 9.7 Practice
+
+Easy. 
+8E1. Which of the following is a requirement of the simple Metropolis algorithm?  
+  (1) The parameters must be discrete. <- yes
+  (2) The likelihood function must be Gaussian. <- yes
+  (3) The proposal distribution must be symmetric. <- no
+
+8E2. Gibbs sampling is more efficient than the Metropolis algorithm. How does it achieve this extra
+efficiency? Are there any limitations to the Gibbs sampling strategy?
+Gibbs sampling uses conjugate pairs to build adaptive proposals. The distribution of proposed parameter values adjusts itself intelligently. 
+
+8E3. Which sort of parameters can Hamiltonian Monte Carlo not handle? Can you explain why? 
+It requires continuous parameters beacuse it can't "glide through" a discrete parameter. 
+
+8E4. Explain the difference between the effective number of samples, n_eff as calculated by Stan,
+and the actual number of samples.
+I think the difference has to do with the amount of autocorrelation during the MCMC process. Presumably, n_eff is trying to estimate the true effective sample, given some amount of calculated autocorrelation
+
+8E5. Which value should Rhat approach, when a chain is sampling the posterior distribution correctly?
+It should approch 1.00
+
+8E6. Sketch a good trace plot for a Markov chain, one that is effectively sampling from the posterior distribution. What is good about its shape? Then sketch a trace plot for a malfunctioning Markov chain. What about its shape indicates malfunction?
+Good trace plots jump all over (and look like white noise?) They cover a wide span and don't drift off to some value. Bad trace plots are less jumpy and look like they have trends associated with them.
+
+Medium.
+8M1. Re-estimate the terrain ruggedness model from the chapter, but now using a uniform prior and an exponential prior for the standard deviation, sigma. The uniform prior should be dunif(0,10) and the exponential should be dexp(1). Do the different priors have any detectible influence on the posterior distribution?
+```{r}
+m9.1 <- ulam(
+    alist(
+        log_gdp_std ~ dnorm( mu , sigma ) ,
+        mu <- a[cid] + b[cid]*( rugged_std - 0.215 ) ,
+        a[cid] ~ dunif( 0 , 10 ) ,
+        b[cid] ~ dunif( 0 , 10 ) ,
+        sigma ~ dexp( 1 )
+),
+data=dat_slim , chains=1 )
+```
+
+```{r}
+traceplot(m9.1)
+```
+
+
+8M2. The Cauchy and exponential priors from the terrain ruggedness model are very weak. They can be made more informative by reducing their scale. Compare the dcauchy and dexp priors for progressively smaller values of the scaling parameter. As these priors become stronger, how does each influence the posterior distribution?
+
+8M3. Re-estimate one of the Stan models from the chapter, but at different numbers of warmup it- erations. Be sure to use the same number of sampling iterations in each case. Compare the n_eff values. How much warmup is enough?
+
+Hard.
+8H1. Run the model below and then inspect the posterior distribution and explain what it is accomplishing.  
+```{r}
+mp <- map2stan(
+    alist(
+        a ~ dnorm(0,1),
+        b ~ dcauchy(0,1)
+    ),
+    data=list(y=1),
+    start=list(a=0,b=0),
+    iter=1e4, warmup=100 , WAIC=FALSE )
+```
+Compare the samples for the parameters a and b. Can you explain the different trace plots, using what you know about the Cauchy distribution?
+```{r}
+precis(mp)
+traceplot(mp$)
+```
+The cauchy distribution has a sd that either has no upper bound and/or is undefinied. 
+
+8H2. Recall the divorce rate example from Chapter 5. Repeat that analysis, using map2stan this time, fitting models m5.1, m5.2, and m5.3. Use compare to compare the models on the basis of WAIC. Explain the results.
+
+
+
+
+
+8H3. Sometimes changing a prior for one parameter has unanticipated effects on other parameters. This is because when a parameter is highly correlated with another parameter in the posterior, the prior influences both parameters. Here’s an example to work and think through.
+Go back to the leg length example in Chapter 5. Here is the code again, which simulates height and leg lengths for 100 imagined individuals:
+```{r}
+N <- 100
+height <- rnorm(N,10,2)
+leg_prop <- runif(N,0.4,0.5)
+leg_left <- leg_prop*height +
+    rnorm( N , 0 , 0.02 )
+leg_right <- leg_prop*height +
+    rnorm( N , 0 , 0.02 )
+d <- data.frame(height,leg_left,leg_right)
+```
+
+And below is the model you fit before, resulting in a highly correlated posterior for the two beta parameters. This time, fit the model using map2stan:
+```{r}
+m5.8s <- map2stan(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + bl*leg_left + br*leg_right ,
+        a ~ dnorm( 10 , 100 ) ,
+        bl ~ dnorm( 2 , 10 ) ,
+        br ~ dnorm( 2 , 10 ) ,
+        sigma ~ dcauchy( 0 , 1 )
+),
+data=d, chains=4, start=list(a=10,bl=0,br=0,sigma=1) )
+```
+
+Compare the posterior distribution produced by the code above to the posterior distribution produced when you change the prior for br so that it is strictly positive:
+```{r}
+m5.8s2 <- map2stan(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + bl*leg_left + br*leg_right ,
+        a ~ dnorm( 10 , 100 ) ,
+        bl ~ dnorm( 2 , 10 ) ,
+        br ~ dnorm( 2 , 10 ) & T[0,] ,
+        sigma ~ dcauchy( 0 , 1 )
+),
+data=d, chains=4, start=list(a=10,bl=0,br=0,sigma=1) )
+```
+Note that T[0,] on the right-hand side of the prior for br. What the T[0,] does is truncate the normal distribution so that it has positive probability only above zero. In other words, that prior ensures that the posterior distribution for br will have no probability mass below zero.
+
+Compare the two posterior distributions for m5.8s and m5.8s2. What has changed in the pos- terior distribution of both beta parameters? Can you explain the change induced by the change in prior?
+
+8H4. For the two models fit in the previous problem, use DIC or WAIC to compare the effective numbers of parameters for each model. Which model has more effective parameters? Why?
+
+8H5. Modify the Metropolis algorithm code from the chapter to handle the case that the island populations have a different distribution than the island labels. This means the island’s number will not be the same as its population.
+
+8H6. Modify the Metropolis algorithm code from the chapter to write your own simple MCMC estimator for globe tossing data and model from Chapter 2.

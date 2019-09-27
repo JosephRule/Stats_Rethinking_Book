@@ -1,0 +1,138 @@
+---
+title: "Earnings Examples"
+output: html_document
+---
+
+This is my first try at fitting a Gelman example using Stan.
+
+Newer versions should interface w/stan directly, but for now I'm going to use the rethinking package.
+
+```{r}
+library(foreign)
+library(rethinking)
+```
+
+```{r}
+root_path = "~./"
+#dat_path = paste(root_path, "/Gelman_Data/earnings/heights.dta", sep="")
+dat_path = "/Users/Joe/Documents/Github/Stats_Rethinking_Book/Gelman_Data/child.iq/kidiq.dta"
+d <- read.dta(dat_path)
+str(d)
+#this file reference stuff is broken, I'll need to fix it
+```
+
+Chapter 1 of Gelman fits multiple regression models 
+fit.1 kid.score ~ mom.hs
+fit.2 kid.score ~ mom.iq
+fit.3 kid.score ~ mom.hs + mom.iq
+fit.4 kid.score ~ mom.hs + mom.iq + mom.hs:mom.iq
+
+try scaling the kid_score and mom_iq...
+```{r}
+d$mom_hs <- d$mom_hs +1
+d$S <- scale(d$kid_score)
+d$MIQ <- scale(d$mom_iq)
+```
+
+
+fit.1 kid.score ~ mom.hs
+```{r}
+#here I need to remember how to fit a linear model with a categroical predictor
+fit.1 <- ulam(
+    alist(
+        S ~ dnorm( mu , sigma ) ,
+        mu <- a+ bHS*mom_hs,
+        a ~ dnorm( 1 , 0.5 ) ,
+        bHS ~ dnorm( 1 , 0.5 ) ,
+        sigma ~ dexp( 1 )
+    ), data=d , chains=1 )
+```
+
+
+```{r}
+precis(fit.1)
+pairs(fit.1)
+traceplot(fit.1)
+```
+
+
+fit.2 kid.score ~ mom.iq
+```{r}
+fit.2 <- ulam(
+    alist(
+        S ~ dnorm( mu , sigma ) ,
+        mu <- a+ bMIQ*MIQ,
+        a ~ dnorm( 1 , 0.5 ) ,
+        bMIQ ~ dnorm( 1 , 0.5 ) ,
+        sigma ~ dexp( 1 )
+    ), data=d , chains=1 )
+```
+
+```{r}
+fit.2 <- ulam(
+    alist(
+        S ~ dnorm( mu , sigma ) ,
+        mu <- a+ bMIQ*MIQ,
+        a ~ dnorm( 1 , 0.5 ) ,
+        bMIQ ~ dnorm( 1 , 0.5 ) ,
+        sigma ~ dexp( 1 )
+    ), data=d , chains=1 )
+```
+
+
+```{r}
+precis(fit.2)
+pairs(fit.2)
+traceplot(fit.2)
+```
+
+
+
+fit.3 kid.score ~ mom.hs + mom.iq
+```{r}
+fit.3 <- ulam(
+    alist(
+        S ~ dnorm( mu , sigma ) ,
+        mu <- a+ bHS*mom_hs + bMIQ*MIQ,
+        a ~ dnorm( 1 , 0.5 ) ,
+        bHS ~ dnorm(1, 0.5) ,
+        bMIQ ~ dnorm( 1 , 0.5 ) ,
+        sigma ~ dexp( 1 )
+    ), data=d , chains=1 )
+```
+
+```{r}
+precis(fit.3)
+pairs(fit.3)
+traceplot(fit.3)
+```
+
+
+fit.4 kid.score ~ mom.hs + mom.iq + mom.hs:mom.iq
+```{r}
+fit.4 <- ulam(
+    alist(
+        S ~ dnorm( mu , sigma ) ,
+        mu <- a+ bHS*mom_hs + bMIQ*MIQ + bHSMIQ*mom_hs*MIQ,
+        a ~ dnorm( 1 , 0.5 ) ,
+        bHS ~ dnorm(1, 0.5) ,
+        bMIQ ~ dnorm( 1 , 0.5 ) ,
+        bHSMIQ ~ dnorm(1, 0.5) ,
+        sigma ~ dexp( 1 )
+    ), data=d, chains = 1 )
+```
+
+```{r}
+precis(fit.4)
+pairs(fit.4)
+traceplot(fit.4)
+```
+
+```{r}
+plot( coeftab(fit.1, fit.2, fit.3, fit.4))
+```
+
+
+
+
+
